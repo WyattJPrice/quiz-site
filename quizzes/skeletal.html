@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skeletal System — Bio Study</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="container">
+
+  <a class="back-link" href="/">← All Quizzes</a>
+
+  <header class="header">
+    <span class="subtitle">Biology · Fill in the Blank</span>
+    <div class="title">Skeletal System</div>
+  </header>
+
+  <div class="scorebar">
+    <div class="score-item">
+      <span class="score-dot correct"></span>
+      <span class="score-val" id="correct-count">0</span>
+      <span class="score-label">correct</span>
+    </div>
+    <div class="score-item">
+      <span class="score-dot wrong"></span>
+      <span class="score-val" id="wrong-count">0</span>
+      <span class="score-label">wrong</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="q-counter" id="q-counter">1 / 62</div>
+  </div>
+
+  <div id="quiz-area">
+    <div class="card" id="question-card">
+      <div class="category-badge" id="category-badge"></div>
+      <div class="question-text" id="question-display"></div>
+      <div class="blank-label" id="blank-label">Your answer</div>
+      <div id="inputs-area"></div>
+      <div class="feedback" id="feedback">
+        <span class="feedback-icon"></span>
+        <span class="feedback-text"></span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="submit-btn" onclick="checkAnswer()">Check Answer</button>
+        <button class="btn btn-skip" onclick="nextQuestion()">Skip →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="complete" id="complete-screen">
+    <div class="complete-icon">🦴</div>
+    <h2>Study session complete!</h2>
+    <p id="complete-sub"></p>
+    <div class="final-stats">
+      <div class="stat-big green"><span class="num" id="final-correct">0</span><span class="lbl">Correct</span></div>
+      <div class="stat-big red"><span class="num" id="final-wrong">0</span><span class="lbl">Wrong</span></div>
+      <div class="stat-big"><span class="num" id="final-pct" style="color:var(--accent)">0%</span><span class="lbl">Score</span></div>
+    </div>
+    <button class="btn btn-restart" onclick="restart()">Study Again</button>
+  </div>
+
+</div>
+
+<div class="toast" id="fuzzy-toast">
+  <span class="toast-icon">💡</span>
+  <div class="toast-body">
+    <div class="toast-title">Close enough — marked correct</div>
+    <div class="toast-msg" id="toast-msg"></div>
+  </div>
+  <button class="toast-close" onclick="dismissToast()">✕</button>
+</div>
+
+<script src="../quiz.js"></script>
+<script>
+const questions = [
+  { cat: "Bone Structure", question: "A bone is covered with a thin, tough membrane called the __________.", answer: "periosteum" },
+  { cat: "Bone Structure", question: "The dense part of bone is called __________ bone.", answer: "compact" },
+  { cat: "Bone Structure", question: "The mineral that gives bone its strength is __________.", answer: "calcium" },
+  { cat: "Bone Structure", question: "The ends of bones are made up of __________ bone.", answer: "spongy" },
+  { cat: "Bone Structure", question: "Most bones contain __________ marrow, which is mostly __________ cells.", answer: "yellow,fat" },
+  { cat: "Bone Structure", question: "New blood cells are made in __________ marrow.", answer: "red" },
+  { cat: "Connective Tissue", question: "__________ connect bones to bones.", answer: "ligaments" },
+  { cat: "Connective Tissue", question: "__________ connect muscles to bones.", answer: "tendons" },
+  { cat: "Connective Tissue", question: "Cartilage acts as a __________ absorber to reduce friction.", answer: "shock" },
+  { cat: "Connective Tissue", question: "A joint is the point where two or more __________ meet.", answer: "bones" },
+  { cat: "Skeletal Functions", question: "The skeletal system is the site of blood cell __________, which occurs in the __________ of some bones.", answer: "production,marrow" },
+  { cat: "Skeletal Divisions", question: "The skeleton is divided into the __________ skeleton and the __________ skeleton.", answer: "axial,appendicular" },
+  { cat: "Skeletal Divisions", question: "The axial skeleton includes the skull, vertebral column, and __________ (rib cage).", answer: "thoracic" },
+  { cat: "Skeletal Divisions", question: "The pectoral girdle is part of the __________ skeleton.", answer: "appendicular" },
+  { cat: "Bone Names", question: "The lower arm bone on the thumb side is the __________.", answer: "radius" },
+  { cat: "Bone Names", question: "The long slender bone of the lower leg is the __________.", answer: "fibula" },
+  { cat: "Bone Names", question: "The upper jaw bone is the __________.", answer: "maxilla" },
+  { cat: "Bone Names", question: "The shoulder blade is called the __________.", answer: "scapula" },
+  { cat: "Bone Names", question: "The shin bone is the __________.", answer: "tibia" },
+  { cat: "Bone Disorders", question: "In osteoporosis, bones become __________ and easily broken.", answer: "brittle" },
+  { cat: "Bone Names", question: "The bones of the upper arm and thigh are the __________ and the __________.", answer: "humerus,femur" },
+  { cat: "Bone Names", question: "The knee bone is called the __________.", answer: "patella" },
+  { cat: "Bone Names", question: "The bones that encase the brain are called the __________.", answer: "cranium" },
+  { cat: "Bone Names", question: "The lower jaw bone is the __________.", answer: "mandible" },
+  { cat: "Bone Names", question: "The wrist bones are called the __________.", answer: "carpals" },
+  { cat: "Bone Names", question: "The bones of the fingers and toes are called the __________.", answer: "phalanges" },
+  { cat: "Bone Names", question: "The forehead bone is the __________.", answer: "frontal" },
+  { cat: "Bone Names", question: "The hip bone is called the __________.", answer: "innominate" },
+  { cat: "Bone Names", question: "The ankle bones are called the __________.", answer: "tarsals" },
+  { cat: "Bone Names", question: "The collar bone is called the __________.", answer: "clavicle" },
+  { cat: "Bone Names", question: "The breast bone is called the __________.", answer: "sternum" },
+  { cat: "Bone Names", question: "The lower arm bone on the little finger side is the __________.", answer: "ulna" },
+  { cat: "Bone Names", question: "The bones of the spinal column are called the __________.", answer: "vertebrae" },
+  { cat: "Bone Names", question: "The cheek bone is called the __________.", answer: "malar (zygomatic)" },
+  { cat: "Connective Tissue", question: "The muscles of the muscular system attach to bones via __________, pulling on them to allow movement.", answer: "tendons" },
+  { cat: "Muscle Control", question: "Voluntary muscle is muscle that can be __________ controlled.", answer: "consciously" },
+  { cat: "Muscle Control", question: "Involuntary muscle is controlled by the __________ nervous system.", answer: "autonomic" },
+  { cat: "Muscle Types", question: "Striated muscle has a __________ appearance due to its fiber composition.", answer: "striped" },
+  { cat: "Bone Disorders", question: "Rheumatoid arthritis occurs when the __________ system attacks the cartilage, damaging and deforming the joints.", answer: "immune" },
+  { cat: "Bone Disorders", question: "Osteoarthritis occurs when the cartilage that covers the bone's surface __________ away, causing bones to rub together.", answer: "wears" },
+  { cat: "Bone Disorders", question: "Leukemia is a cancer of the tissues that produce __________ cells.", answer: "blood" },
+  { cat: "Bone Structure", question: "Bone cells that maintain the mineral content of bone are called __________.", answer: "osteocytes" },
+  { cat: "Bone Structure", question: "A pathway for nerves and blood vessels that supply nutrients to the bone is called the __________ canal.", answer: "haversian" },
+  { cat: "Bone Structure", question: "The layer inside the compact bone, found at the ends of bones, is called __________ bone.", answer: "spongy" },
+  { cat: "Bone Structure", question: "Spaces in spongy bone are filled with __________.", answer: "marrow" },
+  { cat: "Bone Structure", question: "Yellow marrow is mostly made up of __________ cells and stores __________.", answer: "fat,energy" },
+  { cat: "Bone Structure", question: "Compact bone is made of tightly packed bone cells called __________.", answer: "osteocytes" },
+  { cat: "Bone Structure", question: "Periosteum supplies bone cells with __________ and __________ using its rich supply of blood vessels.", answer: "food,oxygen" },
+  { cat: "Connective Tissue", question: "Ligaments help stabilize a joint by attaching __________ to __________.", answer: "bone,bone" },
+  { cat: "Connective Tissue", question: "Tendons connect __________ to __________.", answer: "muscle,bone" },
+  { cat: "Skeletal Functions", question: "In the musculoskeletal system, the muscular and skeletal systems work together to __________ and __________ the body.", answer: "support,move" },
+  { cat: "Skeletal Functions", question: "The bones of the skeletal system serve to protect the body's __________.", answer: "organs" },
+  { cat: "Skeletal Functions", question: "The bones of the skeletal system also support the __________ of the body.", answer: "weight" },
+  { cat: "Skeletal Functions", question: "The human skeleton performs several major __________.", answer: "functions" },
+  { cat: "Skeletal Divisions", question: "The thoracic cage surrounds and protects the organs within the __________, including the heart and lungs.", answer: "chest" },
+  { cat: "Skeletal Divisions", question: "The pectoral girdle supports the __________.", answer: "shoulders" },
+  { cat: "Skeletal Divisions", question: "The pelvic girdle supports the __________.", answer: "pelvis" },
+  { cat: "Connective Tissue", question: "Cartilage is a type of __________ tissue found between joints.", answer: "connective" },
+  { cat: "Connective Tissue", question: "Cartilage acts as a shock absorber to reduce __________.", answer: "friction" },
+  { cat: "Connective Tissue", question: "Ligaments help keep a joint from moving outside of its __________ of motion.", answer: "range" },
+  { cat: "Connective Tissue", question: "Tendons connect the skeletal system to the __________ system.", answer: "muscular" },
+];
+
+initQuiz(questions);
+</script>
+</body>
+</html>

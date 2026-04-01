@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Muscular System — Bio Study</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="container">
+
+  <a class="back-link" href="/">← All Quizzes</a>
+
+  <header class="header">
+    <span class="subtitle">Biology · Fill in the Blank</span>
+    <div class="title">Muscular System</div>
+  </header>
+
+  <div class="scorebar">
+    <div class="score-item">
+      <span class="score-dot correct"></span>
+      <span class="score-val" id="correct-count">0</span>
+      <span class="score-label">correct</span>
+    </div>
+    <div class="score-item">
+      <span class="score-dot wrong"></span>
+      <span class="score-val" id="wrong-count">0</span>
+      <span class="score-label">wrong</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="q-counter" id="q-counter">1 / 62</div>
+  </div>
+
+  <div id="quiz-area">
+    <div class="card" id="question-card">
+      <div class="category-badge" id="category-badge"></div>
+      <div class="question-text" id="question-display"></div>
+      <div class="blank-label" id="blank-label">Your answer</div>
+      <div id="inputs-area"></div>
+      <div class="feedback" id="feedback">
+        <span class="feedback-icon"></span>
+        <span class="feedback-text"></span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="submit-btn" onclick="checkAnswer()">Check Answer</button>
+        <button class="btn btn-skip" onclick="nextQuestion()">Skip →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="complete" id="complete-screen">
+    <div class="complete-icon">💪</div>
+    <h2>Study session complete!</h2>
+    <p id="complete-sub"></p>
+    <div class="final-stats">
+      <div class="stat-big green"><span class="num" id="final-correct">0</span><span class="lbl">Correct</span></div>
+      <div class="stat-big red"><span class="num" id="final-wrong">0</span><span class="lbl">Wrong</span></div>
+      <div class="stat-big"><span class="num" id="final-pct" style="color:var(--accent)">0%</span><span class="lbl">Score</span></div>
+    </div>
+    <button class="btn btn-restart" onclick="restart()">Study Again</button>
+  </div>
+
+</div>
+
+<div class="toast" id="fuzzy-toast">
+  <span class="toast-icon">💡</span>
+  <div class="toast-body">
+    <div class="toast-title">Close enough — marked correct</div>
+    <div class="toast-msg" id="toast-msg"></div>
+  </div>
+  <button class="toast-close" onclick="dismissToast()">✕</button>
+</div>
+
+<script src="../quiz.js"></script>
+<script>
+const questions = [
+  { cat: "Types of Tissue", question: "__________ tissue lines the body's surfaces and makes up the skin.", answer: "Epithelial" },
+  { cat: "Types of Tissue", question: "Nervous tissue is made up of __________, which carry information to all parts of the body.", answer: "neurons" },
+  { cat: "Types of Tissue", question: "Connective tissue that supports the body includes __________.", answer: "blood" },
+  { cat: "Types of Tissue", question: "__________ and ligaments are examples of connective tissue that connects.", answer: "Tendons" },
+  { cat: "Types of Tissue", question: "__________ is connective tissue that protects, while fat insulates.", answer: "Cartilage" },
+  { cat: "Muscle Types", question: "Cardiac muscle fibers are branched and __________, meaning they have stripe-like markings.", answer: "striated" },
+  { cat: "Muscle Types", question: "__________ disks at the ends of cardiac fibers help the heart contract in an organized, wave-like fashion.", answer: "Intercalated" },
+  { cat: "Muscle Types", question: "Cardiac muscle has __________ nucleus/nuclei per cell.", answer: "1" },
+  { cat: "Muscle Types", question: "Cardiac and smooth muscle are both __________, meaning you do not consciously control them.", answer: "involuntary" },
+  { cat: "Muscle Types", question: "Smooth muscle fibers have __________ striations.", answer: "no" },
+  { cat: "Muscle Types", question: "Smooth muscle is __________ shaped.", answer: "spindle" },
+  { cat: "Muscle Types", question: "The digestive tract, blood vessels, bladder, and iris of the eye all contain __________ muscle.", answer: "smooth" },
+  { cat: "Muscle Types", question: "__________ muscle is attached to bone and responsible for movement.", answer: "Skeletal" },
+  { cat: "Muscle Types", question: "Skeletal muscle is under __________ control.", answer: "voluntary" },
+  { cat: "Muscle Types", question: "Skeletal muscle fibers are long cylinders that are __________-nucleated.", answer: "multi" },
+  { cat: "Muscle Contraction", question: "Each muscle fiber contains multiple long cylinders called __________.", answer: "myofibrils" },
+  { cat: "Muscle Contraction", question: "Each myofibril contains repeating sections called __________.", answer: "sarcomeres" },
+  { cat: "Muscle Contraction", question: "__________ are the thin filament proteins involved in muscle contraction.", answer: "Actin" },
+  { cat: "Muscle Contraction", question: "__________ are the thick filaments that pull actin toward the center during contraction.", answer: "Myosin" },
+  { cat: "Muscle Contraction", question: "During contraction, actin and myosin __________ past each other rather than shortening themselves.", answer: "slide" },
+  { cat: "Muscle Names", question: "The muscle on the front of the upper arm is the __________.", answer: "biceps" },
+  { cat: "Muscle Names", question: "The muscle on the back of the upper arm is the __________.", answer: "triceps" },
+  { cat: "Muscle Names", question: "The __________ major is the large muscle on the chest.", answer: "pectoralis" },
+  { cat: "Muscle Names", question: "The __________ is found on the sides of the neck and shoulder.", answer: "deltoid" },
+  { cat: "Muscle Names", question: "The __________ is the inverted triangle-shaped muscle on the back.", answer: "trapezius" },
+  { cat: "Muscle Names", question: "The __________ dorsi wraps around the sides of the back.", answer: "latissimus" },
+  { cat: "Muscle Names", question: "The largest muscle of the buttocks is the __________ maximus.", answer: "gluteus" },
+  { cat: "Muscle Names", question: "The __________ femoris is located on the front of the thigh.", answer: "rectus" },
+  { cat: "Muscle Names", question: "The collective name for the muscles on the front of the thigh is the __________.", answer: "quadriceps" },
+  { cat: "Muscle Names", question: "The collective name for the muscles on the back of the thigh is the __________.", answer: "hamstrings" },
+  { cat: "Muscle Names", question: "The calf muscle is called the __________.", answer: "gastrocnemius" },
+  { cat: "Muscle Names", question: "The abdominal muscle is called the rectus __________.", answer: "abdominus" },
+  { cat: "Muscle Names", question: "The __________ is the muscle on the forehead.", answer: "frontalis" },
+  { cat: "Muscle Names", question: "The __________ is the jaw muscle on the sides of the face.", answer: "masseter" },
+  { cat: "Muscle Names", question: "The __________ is the muscle on the front of the lower leg.", answer: "tibialis" },
+  { cat: "Anatomical Planes", question: "The __________ plane separates the body into upper and lower sections.", answer: "transverse" },
+  { cat: "Anatomical Planes", question: "The __________ plane separates the body into front and back sections.", answer: "frontal" },
+  { cat: "Anatomical Planes", question: "The __________ plane separates the body into left and right sections.", answer: "sagittal" },
+  { cat: "Anatomical Directions", question: "The front surface of the body is called __________.", answer: "anterior/ventral" },
+  { cat: "Anatomical Directions", question: "The back surface of the body is called __________.", answer: "posterior/dorsal" },
+  { cat: "Anatomical Directions", question: "__________ means toward the head region of the body.", answer: "Superior" },
+  { cat: "Anatomical Directions", question: "__________ means toward the foot region of the body.", answer: "Inferior" },
+  { cat: "Anatomical Directions", question: "__________ means closer to the point of attachment to the body.", answer: "Proximal" },
+  { cat: "Anatomical Directions", question: "__________ means farther away from the point of attachment.", answer: "Distal" },
+  { cat: "Anatomical Directions", question: "__________ refers to the inside surfaces of the arms and legs.", answer: "Medial" },
+  { cat: "Anatomical Directions", question: "__________ refers to the side surfaces of the body.", answer: "Lateral" },
+  { cat: "Body Movements", question: "Moving away from the midline of the body is called __________.", answer: "abduction" },
+  { cat: "Body Movements", question: "Moving toward the midline of the body is called __________.", answer: "adduction" },
+  { cat: "Body Movements", question: "__________ decreases the angle between two bones, such as bending a limb.", answer: "Flexion" },
+  { cat: "Body Movements", question: "__________ increases the angle between two bones, such as straightening a limb.", answer: "Extension" },
+  { cat: "Body Movements", question: "Rotating the forearm so the palm faces downward is called __________.", answer: "pronation" },
+  { cat: "Body Movements", question: "Rotating the forearm so the palm faces upward is called __________.", answer: "supination" },
+  { cat: "Body Movements", question: "Standing upright with arms at sides, palms facing forward, and feet together is called __________ position.", answer: "anatomical" },
+  { cat: "Body Movements", question: "The body reclined on its back, face up, is described as __________.", answer: "supinated" },
+  { cat: "Body Movements", question: "The body reclined on its stomach, face down, is described as __________ position.", answer: "pronated" },
+  { cat: "Calcium & Collagen", question: "Vinegar removes __________ from bones, showing why it's important to have enough in our diet.", answer: "calcium" },
+  { cat: "Calcium & Collagen", question: "Bones need both calcium and __________ to be strong and flexible, similar to reinforced concrete.", answer: "collagen" },
+  { cat: "Calcium & Collagen", question: "The __________ acid in vinegar reacts with the calcium in chicken bones, weakening them.", answer: "acetic" },
+  { cat: "Calcium & Collagen", question: "When calcium is removed from a bone by vinegar, it becomes soft and __________, like a rubber chicken.", answer: "rubbery" },
+  { cat: "Calcium & Collagen", question: "While calcium is removed by vinegar, the fibrous protein called __________ remains in the bone.", answer: "collagen" },
+  { cat: "Calcium & Collagen", question: "Collagen gives bones enough __________ to withstand everyday wear and tear.", answer: "flexibility" },
+  { cat: "Calcium & Collagen", question: "Collagen is the most __________ protein in the human body.", answer: "abundant" },
+];
+
+initQuiz(questions);
+</script>
+</body>
+</html>

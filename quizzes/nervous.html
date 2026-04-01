@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nervous System — Bio Study</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="container">
+
+  <a class="back-link" href="/">← All Quizzes</a>
+
+  <header class="header">
+    <span class="subtitle">Biology · Fill in the Blank</span>
+    <div class="title">Nervous System</div>
+  </header>
+
+  <div class="scorebar">
+    <div class="score-item">
+      <span class="score-dot correct"></span>
+      <span class="score-val" id="correct-count">0</span>
+      <span class="score-label">correct</span>
+    </div>
+    <div class="score-item">
+      <span class="score-dot wrong"></span>
+      <span class="score-val" id="wrong-count">0</span>
+      <span class="score-label">wrong</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="q-counter" id="q-counter">1 / 80</div>
+  </div>
+
+  <div id="quiz-area">
+    <div class="card" id="question-card">
+      <div class="category-badge" id="category-badge"></div>
+      <div class="question-text" id="question-display"></div>
+      <div class="blank-label" id="blank-label">Your answer</div>
+      <div id="inputs-area"></div>
+      <div class="feedback" id="feedback">
+        <span class="feedback-icon"></span>
+        <span class="feedback-text"></span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="submit-btn" onclick="checkAnswer()">Check Answer</button>
+        <button class="btn btn-skip" onclick="nextQuestion()">Skip →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="complete" id="complete-screen">
+    <div class="complete-icon">🧠</div>
+    <h2>Study session complete!</h2>
+    <p id="complete-sub"></p>
+    <div class="final-stats">
+      <div class="stat-big green"><span class="num" id="final-correct">0</span><span class="lbl">Correct</span></div>
+      <div class="stat-big red"><span class="num" id="final-wrong">0</span><span class="lbl">Wrong</span></div>
+      <div class="stat-big"><span class="num" id="final-pct" style="color:var(--accent)">0%</span><span class="lbl">Score</span></div>
+    </div>
+    <button class="btn btn-restart" onclick="restart()">Study Again</button>
+  </div>
+
+</div>
+
+<div class="toast" id="fuzzy-toast">
+  <span class="toast-icon">💡</span>
+  <div class="toast-body">
+    <div class="toast-title">Close enough — marked correct</div>
+    <div class="toast-msg" id="toast-msg"></div>
+  </div>
+  <button class="toast-close" onclick="dismissToast()">✕</button>
+</div>
+
+<script src="../quiz.js"></script>
+<script>
+const questions = [
+  { cat: "Vocabulary", question: "The __________ is the body system that collects, processes, and responds to information using electrical signals.", answer: "nervous system" },
+  { cat: "Vocabulary", question: "A __________ is a nerve cell and the basic unit of the nervous system.", answer: "neuron" },
+  { cat: "Vocabulary", question: "A __________ is a cell that supports and protects neurons.", answer: "glial cell" },
+  { cat: "Vocabulary", question: "The __________ nervous system contains the brain and spinal cord.", answer: "central" },
+  { cat: "Vocabulary", question: "The __________ nervous system contains nerves that are not part of the brain or spinal cord.", answer: "peripheral" },
+  { cat: "Vocabulary", question: "The __________ system regulates cells and organs using chemical substances called hormones.", answer: "endocrine" },
+  { cat: "Vocabulary", question: "A __________ is a chemical messenger that acts as a regulatory substance.", answer: "hormone" },
+  { cat: "Vocabulary", question: "A __________ is an organ that secretes chemical substances such as hormones.", answer: "gland" },
+  { cat: "Vocabulary", question: "The __________ coordinates muscle movement, balance, and action.", answer: "cerebellum" },
+  { cat: "Vocabulary", question: "The __________ controls heartbeat and respiration.", answer: "medulla oblongata" },
+  { cat: "Vocabulary", question: "The __________ relays sensory signals to the pituitary gland.", answer: "thalamus" },
+  { cat: "Vocabulary", question: "The __________ controls secretions of the pituitary gland.", answer: "hypothalamus" },
+  { cat: "Vocabulary", question: "The __________ consists of thick bands of fibers joining the cerebral hemispheres.", answer: "corpus callosum" },
+  { cat: "Vocabulary", question: "The __________ links the cortex to the cerebellum.", answer: "pons" },
+  { cat: "Vocabulary", question: "The __________ is the main nerve of the central nervous system.", answer: "spinal cord" },
+  { cat: "Vocabulary", question: "The __________ is the largest part of the brain, responsible for voluntary movement.", answer: "cerebrum" },
+  { cat: "Vocabulary", question: "The __________ gland is the endocrine gland that secretes numerous hormones.", answer: "pituitary" },
+  { cat: "Vocabulary", question: "__________ is an inflammation of the membranes around the brain and spinal cord.", answer: "meningitis" },
+  { cat: "Vocabulary", question: "__________ are organs or cells that act in response to a stimulus, such as muscles and glands.", answer: "effectors" },
+  { cat: "Vocabulary", question: "__________ are bundles of neurons that transmit impulses over long distances.", answer: "nerves" },
+  { cat: "Neuron Overview", question: "The nervous system uses __________ impulses to collect, process, and respond to information.", answer: "electrical" },
+  { cat: "Neuron Overview", question: "All neurons include a cell body, __________, and an axon.", answer: "dendrites" },
+  { cat: "Neuron Overview", question: "Electrical signals that allow neurons to communicate with one another are called neural __________.", answer: "impulses" },
+  { cat: "Neuron Overview", question: "__________ neurons carry impulses from sense organs such as the eyes or ears.", answer: "sensory" },
+  { cat: "Neuron Overview", question: "__________ neurons carry impulses to muscles and glands.", answer: "motor" },
+  { cat: "Neuron Overview", question: "__________ transfer signals between sensory and motor neurons.", answer: "interneurons" },
+  { cat: "Neuron Overview", question: "In a resting neuron, the separation of ions in the cell is regulated by __________-potassium pumps.", answer: "sodium" },
+  { cat: "Neuron Overview", question: "If a neuron receives a large enough signal, the resting potential changes, producing an electrical impulse called an __________ potential.", answer: "action" },
+  { cat: "Neuron Overview", question: "Once an impulse begins, it moves down the __________ until it reaches the axon terminal.", answer: "axon" },
+  { cat: "System Divisions", question: "Commands originate in the brain, and the __________ connects them with the rest of the nerves in the body.", answer: "spinal cord" },
+  { cat: "System Divisions", question: "The __________ nervous system regulates voluntary activities such as muscular movement and controls reflexes.", answer: "somatic" },
+  { cat: "System Divisions", question: "The __________ nervous system regulates activities not under conscious control.", answer: "autonomic" },
+  { cat: "System Divisions", question: "The __________ division of the autonomic nervous system prepares the body for fight-or-flight responses.", answer: "sympathetic" },
+  { cat: "System Divisions", question: "The __________ division of the autonomic nervous system is active during restful periods.", answer: "parasympathetic" },
+  { cat: "Brain Regions", question: "The __________ lobe deals with higher thought processes.", answer: "frontal" },
+  { cat: "Brain Regions", question: "The medulla oblongata contains vital reflex centers for blood pressure, respiration, and __________.", answer: "heart rate" },
+  { cat: "Brain Regions", question: "The __________ is the outer, thin layer of the cerebrum where the work of the cerebrum is accomplished.", answer: "cortex" },
+  { cat: "Brain Regions", question: "The __________ lobe deals with taste.", answer: "parietal" },
+  { cat: "Brain Regions", question: "The fissure of __________ separates the temporal lobe from the parietal lobe.", answer: "sylvius" },
+  { cat: "Brain Regions", question: "The __________ lobe deals with vision.", answer: "occipital" },
+  { cat: "Brain Regions", question: "The __________ contains centers for pupillary reflexes and eye movement reflexes.", answer: "midbrain" },
+  { cat: "Brain Regions", question: "The cerebellum deals with coordinating __________ movements.", answer: "muscle" },
+  { cat: "Brain Regions", question: "The parietal lobe receives __________ information from skin receptors.", answer: "sensory" },
+  { cat: "Brain Regions", question: "The frontal lobe deals with the control of voluntary __________ movements.", answer: "muscle" },
+  { cat: "Brain Regions", question: "The __________ lobe deals with smell and hearing.", answer: "temporal" },
+  { cat: "Brain Regions", question: "The medulla oblongata controls reflexes such as coughing and __________.", answer: "sneezing" },
+  { cat: "Brain Regions", question: "The fissure of __________ separates the parietal lobe from the frontal lobe.", answer: "rolando" },
+  { cat: "Brain Regions", question: "The pons contains a center that helps with the control of __________.", answer: "respiration" },
+  { cat: "Brain Regions", question: "There are __________ pairs of cranial nerves that reach out from the brain.", answer: "12" },
+  { cat: "Key Statements", question: "Sensory neurons carry information from skin receptors to the brain and __________.", answer: "spinal cord" },
+  { cat: "Key Statements", question: "The brain and spinal cord constitute the __________ nervous system.", answer: "central" },
+  { cat: "Key Statements", question: "The three principal parts of a neuron are a dendrite, an axon, and a cell __________.", answer: "body" },
+  { cat: "Key Statements", question: "The minute gap between two neurons is called a __________.", answer: "synapse" },
+  { cat: "Key Statements", question: "The cerebrum of the brain has __________ visible lobes.", answer: "4" },
+  { cat: "Key Statements", question: "There are __________ pairs of cranial nerves attached to the brain.", answer: "12" },
+  { cat: "Key Statements", question: "An involuntary action of the nervous system is called a __________.", answer: "reflex" },
+  { cat: "Key Statements", question: "Motor neurons carry information towards the __________ and glands.", answer: "muscles" },
+  { cat: "Key Statements", question: "Wrapped around the axon of a neuron, the __________ sheath serves the function of insulation.", answer: "myelin" },
+  { cat: "Key Statements", question: "Another name for a nerve impulse is an __________ potential.", answer: "action" },
+  { cat: "Key Statements", question: "The corpus callosum connects the right and left __________ of the brain.", answer: "hemispheres" },
+  { cat: "Key Statements", question: "A chemical released at the synapse is called a __________.", answer: "neurotransmitter" },
+  { cat: "Key Statements", question: "The __________ nerve deals with the sense of smelling.", answer: "olfactory" },
+  { cat: "Key Statements", question: "A record of brain activity is the __________.", answer: "electroencephalogram" },
+  { cat: "Key Statements", question: "The spinal cord is protected by bones called __________.", answer: "vertebrae" },
+  { cat: "Reflex Arc", question: "In a reflex arc, a stimulus triggers the __________.", answer: "receptor" },
+  { cat: "Reflex Arc", question: "In a reflex arc, the impulse travels from the receptor along a __________ neuron into the spinal cord.", answer: "sensory" },
+  { cat: "Reflex Arc", question: "In a reflex arc, the impulse jumps across a __________ to an interneuron.", answer: "synapse" },
+  { cat: "Reflex Arc", question: "In a reflex arc, after the interneuron, the impulse crosses to a __________ neuron.", answer: "motor" },
+  { cat: "Reflex Arc", question: "In a reflex arc, the impulse travels along the motor neuron to a muscle, also called an __________.", answer: "effector" },
+  { cat: "Neuron Detail", question: "__________ are specialized for the transmission of nerve impulses.", answer: "neurons" },
+  { cat: "Neuron Detail", question: "The nucleus of a neuron is located in the __________ of the neuron.", answer: "cell body" },
+  { cat: "Neuron Detail", question: "__________ transmit nerve impulses from other cells or sensory systems to the cell body.", answer: "dendrites" },
+  { cat: "Neuron Detail", question: "__________ provide for the transmission of nerve impulses away from the cell body.", answer: "axons" },
+  { cat: "Neuron Detail", question: "A single neuron cell can be over a meter long due to the length of its __________.", answer: "axon" },
+  { cat: "Neuron Detail", question: "__________ are the supporting cells associated with axons.", answer: "glial cells" },
+  { cat: "Neuron Detail", question: "Glial cells form a __________ around many vertebrate neurons.", answer: "myelin sheath" },
+  { cat: "Neuron Detail", question: "__________ interrupt the myelin sheath where the axon is in direct contact with surrounding intercellular fluid.", answer: "nodes of ranvier" },
+  { cat: "Neuron Detail", question: "The junction between a neuron and a muscle is called a __________ junction.", answer: "neuromuscular" },
+  { cat: "Neuron Detail", question: "__________ is the neurotransmitter at a neuromuscular junction.", answer: "acetylcholine" },
+  { cat: "Neuron Detail", question: "At a neuromuscular junction, acetylcholine released from an __________ depolarizes the muscle cell membrane and triggers muscle contractions.", answer: "axon terminal" },
+];
+
+initQuiz(questions);
+</script>
+</body>
+</html>

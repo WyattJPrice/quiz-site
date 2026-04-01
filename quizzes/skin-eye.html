@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skin &amp; Eye — Bio Study</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="container">
+
+  <a class="back-link" href="/">← All Quizzes</a>
+
+  <header class="header">
+    <span class="subtitle">Biology · Fill in the Blank</span>
+    <div class="title">Skin &amp; Eye</div>
+  </header>
+
+  <div class="scorebar">
+    <div class="score-item">
+      <span class="score-dot correct"></span>
+      <span class="score-val" id="correct-count">0</span>
+      <span class="score-label">correct</span>
+    </div>
+    <div class="score-item">
+      <span class="score-dot wrong"></span>
+      <span class="score-val" id="wrong-count">0</span>
+      <span class="score-label">wrong</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="q-counter" id="q-counter">1 / 50</div>
+  </div>
+
+  <div id="quiz-area">
+    <div class="card" id="question-card">
+      <div class="category-badge" id="category-badge"></div>
+      <div class="question-text" id="question-display"></div>
+      <div class="blank-label" id="blank-label">Your answer</div>
+      <div id="inputs-area"></div>
+      <div class="feedback" id="feedback">
+        <span class="feedback-icon"></span>
+        <span class="feedback-text"></span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="submit-btn" onclick="checkAnswer()">Check Answer</button>
+        <button class="btn btn-skip" onclick="nextQuestion()">Skip →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="complete" id="complete-screen">
+    <div class="complete-icon">👁️</div>
+    <h2>Study session complete!</h2>
+    <p id="complete-sub"></p>
+    <div class="final-stats">
+      <div class="stat-big green"><span class="num" id="final-correct">0</span><span class="lbl">Correct</span></div>
+      <div class="stat-big red"><span class="num" id="final-wrong">0</span><span class="lbl">Wrong</span></div>
+      <div class="stat-big"><span class="num" id="final-pct" style="color:var(--accent)">0%</span><span class="lbl">Score</span></div>
+    </div>
+    <button class="btn btn-restart" onclick="restart()">Study Again</button>
+  </div>
+
+</div>
+
+<div class="toast" id="fuzzy-toast">
+  <span class="toast-icon">💡</span>
+  <div class="toast-body">
+    <div class="toast-title">Close enough — marked correct</div>
+    <div class="toast-msg" id="toast-msg"></div>
+  </div>
+  <button class="toast-close" onclick="dismissToast()">✕</button>
+</div>
+
+<script src="../quiz.js"></script>
+<script>
+const questions = [
+  { cat: "Skin Vocabulary", question: "The pigment that gives skin its color is __________.", answer: "melanin" },
+  { cat: "Skin Vocabulary", question: "__________ glands are located in the external ear and secrete a waxy material.", answer: "ceruminous" },
+  { cat: "Skin Vocabulary", question: "Another name for the skin is the __________ membrane.", answer: "cutaneous" },
+  { cat: "Skin Vocabulary", question: "Skin receptors sensitive to pain are called __________ receptors.", answer: "pain" },
+  { cat: "Skin Vocabulary", question: "The body system that comprises the skin and its related structures is called the __________ system.", answer: "integumentary" },
+  { cat: "Skin Vocabulary", question: "__________ glands secrete an oily substance into hair follicles.", answer: "sebaceous" },
+  { cat: "Skin Vocabulary", question: "The epidermis is made up of __________ squamous epithelial cells.", answer: "stratified" },
+  { cat: "Skin Vocabulary", question: "__________ fibers give skin its strength.", answer: "collagenous" },
+  { cat: "Skin Vocabulary", question: "The outer layer of dead skin cells is called the stratum __________.", answer: "corneum" },
+  { cat: "Skin Vocabulary", question: "The most numerous of all skin glands are __________ glands.", answer: "sweat" },
+  { cat: "Skin Vocabulary", question: "The layer of skin cells directly above the dermis is the __________.", answer: "epidermis" },
+  { cat: "Skin Vocabulary", question: "Skin receptors sensitive to touch are called __________ corpuscles.", answer: "ruffinis" },
+  { cat: "Skin Vocabulary", question: "The fold of skin covering the root of the nail is called the __________.", answer: "cuticle" },
+  { cat: "Skin Disorders", question: "Acne results when pores become clogged and infected with __________, which produce pus causing pimples.", answer: "bacteria" },
+  { cat: "Skin Disorders", question: "Avoiding __________ radiation reduces the risk of skin cancer.", answer: "uv" },
+  { cat: "Skin Disorders", question: "__________ is the most common form of skin cancer, developing in epidermal cells that do not produce melanin.", answer: "carcinoma" },
+  { cat: "Skin Disorders", question: "__________ is a skin cancer that occurs in pigment-producing epidermal cells and spreads quickly to other parts of the body.", answer: "melanoma" },
+  { cat: "Skin Disorders", question: "Athlete's foot and ringworm are examples of __________ infections of the skin.", answer: "fungal" },
+  { cat: "Skin Disorders", question: "__________ is a hereditary skin disorder that causes red, scaly skin and occurs when the immune system is low.", answer: "psoriasis" },
+  { cat: "Skin Overview", question: "Skin is composed of the outer __________ and the lower dermis.", answer: "epidermis" },
+  { cat: "Skin Overview", question: "The protective layer beneath the dermis is called the __________ layer.", answer: "subcutaneous" },
+  { cat: "Skin Overview", question: "It takes about __________ days for all outer skin cells to be replaced.", answer: "27" },
+  { cat: "Skin Overview", question: "Specialized cells called __________ within the epidermis produce a brownish pigment called melanin.", answer: "melanocytes" },
+  { cat: "Skin Overview", question: "People of all races have about the same number of melanocytes but differ in the amount of __________ produced.", answer: "melanin" },
+  { cat: "Skin Overview", question: "The dermis is composed mainly of __________ tissue, which gives skin its strength and elasticity.", answer: "connective" },
+  { cat: "Skin Overview", question: "__________ of the skin occurs in the dermal layer.", answer: "wrinkling" },
+  { cat: "Skin Overview", question: "Skin is the largest __________ of the vertebrate body.", answer: "organ" },
+  { cat: "Skin Overview", question: "Skin composes about __________ percent of an adult's body weight.", answer: "15" },
+  { cat: "Skin Overview", question: "Among the structures in the dermis are blood vessels, nerves, hair follicles, oil glands, and __________ glands.", answer: "sweat" },
+  { cat: "Eye Vocabulary", question: "The __________ is a hole through the iris that lets light enter the eye.", answer: "pupil" },
+  { cat: "Eye Vocabulary", question: "The __________ is a very small area on the retina with the sharpest focus of incoming light.", answer: "fovea" },
+  { cat: "Eye Vocabulary", question: "The __________ is an area of the retina that does not register incoming light.", answer: "blind spot" },
+  { cat: "Eye Vocabulary", question: "The __________ is the colored part of the eye that regulates the amount of light entering.", answer: "iris" },
+  { cat: "Eye Vocabulary", question: "The __________ is the middle layer of the eyeball with black pigment that prevents internal light reflection.", answer: "choroid" },
+  { cat: "Eye Vocabulary", question: "The __________ body is the gel-like material filling the posterior section of the eyeball.", answer: "vitreous" },
+  { cat: "Eye Vocabulary", question: "The __________ nerve carries visual nerve impulses from the eye to the brain.", answer: "optic" },
+  { cat: "Eye Vocabulary", question: "__________ humor is the liquid filling the anterior section of the eyeball.", answer: "aqueous" },
+  { cat: "Eye Vocabulary", question: "The __________ is a thin mucous membrane that lubricates and covers the cornea and eyelids.", answer: "conjunctiva" },
+  { cat: "Eye Vocabulary", question: "The __________ is the outer protective layer of the eyeball.", answer: "sclera" },
+  { cat: "Eye Vocabulary", question: "The __________ is the transparent front part of the sclera that helps focus incoming light.", answer: "cornea" },
+  { cat: "Eye Vocabulary", question: "The __________ is the inner layer of the eye containing light-sensitive rods and cones.", answer: "retina" },
+  { cat: "Eye Vocabulary", question: "__________ ligaments are the structures that hold the lens in place.", answer: "suspensory" },
+  { cat: "Eye Vocabulary", question: "The __________ focuses light rays onto the retina.", answer: "lens" },
+  { cat: "Eye Vocabulary", question: "__________ are retinal cells sensitive to low light but not color.", answer: "rods" },
+  { cat: "Eye Vocabulary", question: "__________ are retinal cells responsible for color vision.", answer: "cones" },
+  { cat: "Eye Overview", question: "Light first passes through the __________, which begins to focus it onto the rear of the eye.", answer: "cornea" },
+  { cat: "Eye Overview", question: "The lens is held in place by suspending ligaments attached to __________ muscles.", answer: "ciliary" },
+  { cat: "Eye Overview", question: "Contraction of the ciliary muscles changes the __________ of the lens and the focal point.", answer: "shape" },
+  { cat: "Eye Overview", question: "The iris controls the amount of light entering by reducing the size of the __________.", answer: "pupil" },
+  { cat: "Eye Overview", question: "The retina contains about 3 million __________ that detect color.", answer: "cones" },
+  { cat: "Eye Overview", question: "The retina contains about one billion __________ that detect light and dark.", answer: "rods" },
+  { cat: "Eye Overview", question: "The central region of the retina where images are focused is called the __________.", answer: "fovea" },
+  { cat: "Eye Overview", question: "The __________ nerve transmits visual impulses directly to the brain.", answer: "optic" },
+  { cat: "Eye Overview", question: "People whose point of focus lies in front of the fovea are said to be __________ sighted.", answer: "near" },
+  { cat: "Eye Overview", question: "People whose point of focus lies behind the fovea are said to be __________ sighted.", answer: "far" },
+  { cat: "Eye Overview", question: "__________ lenses may be used to focus the image onto the fovea, correcting near- or farsightedness.", answer: "corrective" },
+];
+
+initQuiz(questions);
+</script>
+</body>
+</html>
