@@ -61,6 +61,7 @@ let correctCount = 0;
 let wrongCount = 0;
 let answered = false;
 let toastTimer = null;
+let selectedChoice = null;
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 function initQuiz(questions, config = {}) {
@@ -87,44 +88,27 @@ function formatQuestion(q) {
     .replace(/_{5,}/g, '<span style="color:var(--accent);font-weight:700">_____</span>');
 }
 
+function selectChoice(btn, value) {
+  if (answered) return;
+  selectedChoice = value;
+  document.querySelectorAll('.mc-choice').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  checkAnswer();
+}
+
 function loadQuestion() {
   answered = false;
+  selectedChoice = null;
   const q = deck[idx];
-  const answers = q.answer.split(',');
-  const isMulti = answers.length > 1;
 
   const badge = document.getElementById('category-badge');
   if (badge) badge.textContent = q.cat || '';
 
   document.getElementById('question-display').innerHTML = formatQuestion(q.question);
   document.getElementById('q-counter').textContent = `${idx + 1} / ${deck.length}`;
-  document.getElementById('blank-label').textContent = isMulti ? `Fill in all ${answers.length} blanks` : 'Your answer';
 
   const area = document.getElementById('inputs-area');
   area.innerHTML = '';
-
-  answers.forEach((ans, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'input-wrap';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'blank-input';
-    input.id = `blank-${i}`;
-    input.placeholder = isMulti ? `Blank ${i + 1}` : 'Type your answer...';
-    input.autocomplete = 'off';
-    input.autocorrect = 'off';
-    input.spellcheck = false;
-
-    const reveal = document.createElement('div');
-    reveal.className = 'correct-answer-reveal';
-    reveal.id = `reveal-${i}`;
-    reveal.textContent = `✓ ${ans.split('/')[0]}`;
-
-    wrap.appendChild(input);
-    wrap.appendChild(reveal);
-    area.appendChild(wrap);
-  });
 
   const card = document.getElementById('question-card');
   card.className = 'card';
@@ -138,10 +122,50 @@ function loadQuestion() {
   btn.textContent = 'Check Answer';
   btn.disabled = false;
 
-  setTimeout(() => {
-    const first = document.getElementById('blank-0');
-    if (first) { first.focus(); first.select(); }
-  }, 50);
+  if (q.choices) {
+    document.getElementById('blank-label').textContent = 'Choose one:';
+    shuffle(q.choices).forEach((choice, i) => {
+      const choiceBtn = document.createElement('button');
+      choiceBtn.className = 'mc-choice';
+      choiceBtn.id = `mc-${i}`;
+      choiceBtn.textContent = choice;
+      choiceBtn.dataset.value = choice;
+      choiceBtn.onclick = () => selectChoice(choiceBtn, choice);
+      area.appendChild(choiceBtn);
+    });
+  } else {
+    const answers = q.answer.split(',');
+    const isMulti = answers.length > 1;
+    document.getElementById('blank-label').textContent = isMulti ? `Fill in all ${answers.length} blanks` : 'Your answer';
+
+    answers.forEach((ans, i) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'input-wrap';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'blank-input';
+      input.id = `blank-${i}`;
+      input.placeholder = isMulti ? `Blank ${i + 1}` : 'Type your answer...';
+      input.autocomplete = 'off';
+      input.autocorrect = 'off';
+      input.spellcheck = false;
+
+      const reveal = document.createElement('div');
+      reveal.className = 'correct-answer-reveal';
+      reveal.id = `reveal-${i}`;
+      reveal.textContent = `✓ ${ans.split('/')[0]}`;
+
+      wrap.appendChild(input);
+      wrap.appendChild(reveal);
+      area.appendChild(wrap);
+    });
+
+    setTimeout(() => {
+      const first = document.getElementById('blank-0');
+      if (first) { first.focus(); first.select(); }
+    }, 50);
+  }
 
   updateProgress();
 }
@@ -151,6 +175,50 @@ function checkAnswer() {
   if (answered) { nextQuestion(); return; }
 
   const q = deck[idx];
+
+  if (q.choices) {
+    if (selectedChoice === null) return;
+    const isCorrect = normalize(selectedChoice) === normalize(q.answer);
+
+    document.querySelectorAll('.mc-choice').forEach(btn => {
+      btn.disabled = true;
+      if (normalize(btn.dataset.value) === normalize(q.answer)) {
+        btn.classList.add('mc-correct');
+      } else if (btn.classList.contains('selected') && !isCorrect) {
+        btn.classList.add('mc-wrong');
+      }
+    });
+
+    const card = document.getElementById('question-card');
+    const feedback = document.getElementById('feedback');
+
+    if (isCorrect) {
+      correctCount++;
+      card.className = 'card correct-state pop';
+      feedback.className = 'feedback correct show';
+      feedback.querySelector('.feedback-icon').textContent = '✓';
+      feedback.querySelector('.feedback-text').textContent = 'Correct!';
+      card.addEventListener('animationend', () => card.classList.remove('pop'), { once: true });
+      setTimeout(() => nextQuestion(), 900);
+    } else {
+      wrongCount++;
+      card.className = 'card wrong-state shake';
+      feedback.className = 'feedback wrong show';
+      feedback.querySelector('.feedback-icon').textContent = '✗';
+      feedback.querySelector('.feedback-text').textContent = 'Not quite — the correct answer is highlighted.';
+      card.addEventListener('animationend', () => {
+        card.classList.remove('shake');
+        card.classList.add('wrong-state');
+      }, { once: true });
+    }
+
+    document.getElementById('correct-count').textContent = correctCount;
+    document.getElementById('wrong-count').textContent = wrongCount;
+    answered = true;
+    document.getElementById('submit-btn').textContent = idx < deck.length - 1 ? 'Next Question →' : 'See Results →';
+    return;
+  }
+
   const answers = q.answer.split(',');
   const userVals = answers.map((_, i) => document.getElementById(`blank-${i}`).value);
 
@@ -255,7 +323,7 @@ function showComplete() {
 
 function restart() {
   deck = shuffle(deck);
-  idx = 0; correctCount = 0; wrongCount = 0; answered = false;
+  idx = 0; correctCount = 0; wrongCount = 0; answered = false; selectedChoice = null;
   document.getElementById('correct-count').textContent = 0;
   document.getElementById('wrong-count').textContent = 0;
   document.getElementById('complete-screen').classList.remove('show');
