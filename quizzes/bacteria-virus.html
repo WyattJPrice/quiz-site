@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bacteria, Virus &amp; Classification — Bio Study</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="container">
+
+  <a class="back-link" href="/">← All Quizzes</a>
+
+  <header class="header">
+    <span class="subtitle">Biology · Fill in the Blank</span>
+    <div class="title">Bacteria, Virus &amp; Classification</div>
+  </header>
+
+  <div class="scorebar">
+    <div class="score-item">
+      <span class="score-dot correct"></span>
+      <span class="score-val" id="correct-count">0</span>
+      <span class="score-label">correct</span>
+    </div>
+    <div class="score-item">
+      <span class="score-dot wrong"></span>
+      <span class="score-val" id="wrong-count">0</span>
+      <span class="score-label">wrong</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="q-counter" id="q-counter">1 / 91</div>
+  </div>
+
+  <div id="quiz-area">
+    <div class="card" id="question-card">
+      <div class="category-badge" id="category-badge"></div>
+      <div class="question-text" id="question-display"></div>
+      <div class="blank-label" id="blank-label">Your answer</div>
+      <div id="inputs-area"></div>
+      <div class="feedback" id="feedback">
+        <span class="feedback-icon"></span>
+        <span class="feedback-text"></span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="submit-btn" onclick="checkAnswer()">Check Answer</button>
+        <button class="btn btn-skip" onclick="nextQuestion()">Skip →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="complete" id="complete-screen">
+    <div class="complete-icon">🦠</div>
+    <h2>Study session complete!</h2>
+    <p id="complete-sub"></p>
+    <div class="final-stats">
+      <div class="stat-big green"><span class="num" id="final-correct">0</span><span class="lbl">Correct</span></div>
+      <div class="stat-big red"><span class="num" id="final-wrong">0</span><span class="lbl">Wrong</span></div>
+      <div class="stat-big"><span class="num" id="final-pct" style="color:var(--accent)">0%</span><span class="lbl">Score</span></div>
+    </div>
+    <button class="btn btn-restart" onclick="restart()">Study Again</button>
+  </div>
+
+</div>
+
+<div class="toast" id="fuzzy-toast">
+  <span class="toast-icon">💡</span>
+  <div class="toast-body">
+    <div class="toast-title">Close enough — marked correct</div>
+    <div class="toast-msg" id="toast-msg"></div>
+  </div>
+  <button class="toast-close" onclick="dismissToast()">✕</button>
+</div>
+
+<script src="../quiz.js"></script>
+<script>
+const questions = [
+  // ── Bacteria Definitions ──────────────────────────────────────────────────
+  { cat: "Bacteria Definitions", question: "__________ are long structures used for movement in bacteria.", answer: "flagella" },
+  { cat: "Bacteria Definitions", question: "__________ are the organelles where proteins are manufactured.", answer: "ribosomes" },
+  { cat: "Bacteria Definitions", question: "The __________ is the region of the cell that contains concentrated DNA.", answer: "nucleoid" },
+  { cat: "Bacteria Definitions", question: "The __________ is a tough outer layer that gives bacteria its shape.", answer: "cell wall" },
+  { cat: "Bacteria Definitions", question: "The cell __________ membrane is a thin layer inside the cell wall.", answer: "plasma" },
+  { cat: "Bacteria Definitions", question: "The __________ is a layer of slime surrounding the cell wall, used for protection.", answer: "capsule" },
+  { cat: "Bacteria Definitions", question: "__________ is a means of genetic transfer but not reproducing in bacteria.", answer: "conjugation" },
+  { cat: "Bacteria Definitions", question: "A __________ is a genetic structure that can replicate independently (circular DNA).", answer: "plasmid" },
+  { cat: "Bacteria Definitions", question: "A __________ bridge is a channel that connects adjacent cells to share contents.", answer: "cytoplasmic" },
+  { cat: "Bacteria Definitions", question: "__________ are thick internal walls made of several hard layers that enclose bacteria DNA.", answer: "endospores" },
+
+  // ── Bacteria – Conditions to Grow ─────────────────────────────────────────
+  { cat: "Bacteria – Conditions to Grow", question: "Bacteria need __________ — a liquid environment — to grow.", answer: "moisture" },
+  { cat: "Bacteria – Conditions to Grow", question: "Bacteria grow best at a __________ temperature of 80–100°F.", answer: "moderate" },
+  { cat: "Bacteria – Conditions to Grow", question: "Bacteria require __________ as a food source to grow.", answer: "nutrition" },
+  { cat: "Bacteria – Conditions to Grow", question: "Bacteria prefer __________ conditions (absence of light) to grow.", answer: "darkness" },
+  { cat: "Bacteria – Conditions to Grow", question: "Bacteria need a proper amount of __________ to grow.", answer: "oxygen" },
+
+  // ── Common Bacteria ────────────────────────────────────────────────────────
+  { cat: "Common Bacteria", question: "Pneumonia is caused by __________.", answer: "Streptococcus pneumoniae" },
+  { cat: "Common Bacteria", question: "Tooth decay is caused by __________.", answer: "Streptococcus mutans" },
+  { cat: "Common Bacteria", question: "Cholera is caused by __________.", answer: "Vibrio cholera" },
+  { cat: "Common Bacteria", question: "Lyme disease is caused by __________.", answer: "Borrelia burgdorferi" },
+  { cat: "Common Bacteria", question: "Food poisoning from undercooked meat is caused by __________.", answer: "Escherichia coli" },
+  { cat: "Common Bacteria", question: "Wound infections are commonly caused by __________.", answer: "Staphylococcus aureus" },
+  { cat: "Common Bacteria", question: "Tuberculosis is caused by __________.", answer: "Mycobacterium tuberculosis" },
+
+  // ── Bacteria – Fill in the Blank ──────────────────────────────────────────
+  { cat: "Bacteria", question: "Bacteria form __________ under unfavorable conditions.", answer: "spores" },
+  { cat: "Bacteria", question: "Monerans have no definite __________, but can still carry on reproduction.", answer: "nucleus" },
+  { cat: "Bacteria", question: "Monerans have no __________, but can still carry on cellular respiration.", answer: "mitochondria" },
+  { cat: "Bacteria", question: "Cyanobacteria may also be called __________.", answer: "blue-green algae" },
+  { cat: "Bacteria", question: "When cyanobacteria multiply rapidly in a pond, they use up all of the __________.", answer: "oxygen" },
+  { cat: "Bacteria", question: "Bacteria come in three shapes: __________, __________, and __________.", answer: "spiral,rodlike,round" },
+  { cat: "Bacteria", question: "Some bacteria have a whiplike tail called a __________.", answer: "flagellum" },
+  { cat: "Bacteria", question: "Bacteria that do not need oxygen to live are called __________.", answer: "anaerobes" },
+  { cat: "Bacteria", question: "Bacteria reproduce by the process of __________.", answer: "binary fission" },
+  { cat: "Bacteria", question: "Bacteria that live on dead organic matter are called __________.", answer: "saprophytes" },
+  { cat: "Bacteria", question: "A relationship between two organisms that does not harm either one is __________.", answer: "mutualism" },
+  { cat: "Bacteria", question: "Two conditions needed for bacteria to live are __________ and __________.", answer: "moisture,proper temperature" },
+  { cat: "Bacteria", question: "Four ways to control bacterial growth are __________, __________, __________, and __________.", answer: "freezing,refrigeration,radiation,canning" },
+  { cat: "Bacteria", question: "Bacteria are the oldest known and simplest __________.", answer: "organism" },
+  { cat: "Bacteria", question: "__________ bacteria live in nodules on the roots of plants, fixing atmospheric nitrogen.", answer: "nitrogen fixing" },
+  { cat: "Bacteria", question: "__________ is the most important source of variability in bacteria.", answer: "mutation" },
+  { cat: "Bacteria", question: "__________ are the source of over 2000 kinds of antibiotics.", answer: "actinomycetes" },
+  { cat: "Bacteria", question: "__________ are the causative agents of syphilis and lyme disease.", answer: "spirochetes" },
+
+  // ── Virus Definitions ─────────────────────────────────────────────────────
+  { cat: "Virus Definitions", question: "A __________ is a protein coat that encloses a virus's genetic material.", answer: "capsid" },
+  { cat: "Virus Definitions", question: "A __________ is a virus that infects bacteria.", answer: "bacteriophage" },
+  { cat: "Virus Definitions", question: "HIV stands for Human __________ Virus.", answer: "immunity" },
+  { cat: "Virus Definitions", question: "AIDS stands for Acquired Immune __________ Syndrome.", answer: "deficiency" },
+  { cat: "Virus Definitions", question: "__________ causes the flu.", answer: "influenza" },
+  { cat: "Virus Definitions", question: "__________ virus causes chicken pox.", answer: "varicella zoster" },
+
+  // ── Virus – Fill in the Blank ─────────────────────────────────────────────
+  { cat: "Virus", question: "Viruses consist of nucleic acids covered by a coat of __________.", answer: "protein" },
+  { cat: "Virus", question: "Viruses, unlike bacteria, are not composed of __________.", answer: "cells" },
+  { cat: "Virus", question: "The only life function viruses can perform is __________.", answer: "reproduction" },
+  { cat: "Virus", question: "Protection against some viral diseases can be produced by __________.", answer: "vaccinations" },
+  { cat: "Virus", question: "Three viral diseases are __________, __________, and __________.", answer: "aids,mumps,measles" },
+  { cat: "Virus", question: "A vaccine is made from a __________ form of the virus.", answer: "weakened" },
+  { cat: "Virus", question: "Two natural defenses the body has against viruses are __________ and __________.", answer: "antibodies,interferon" },
+  { cat: "Virus", question: "Viruses can be either __________ viruses or RNA viruses.", answer: "DNA" },
+  { cat: "Virus", question: "Viruses can be either DNA viruses or __________ viruses.", answer: "RNA" },
+
+  // ── Classification – Taxonomy ─────────────────────────────────────────────
+  { cat: "Classification – Taxonomy", question: "The seven classification levels begin with Kingdom, then __________.", answer: "phylum" },
+  { cat: "Classification – Taxonomy", question: "After Phylum in the classification order comes __________.", answer: "class" },
+  { cat: "Classification – Taxonomy", question: "After Class in the classification order comes __________.", answer: "order" },
+  { cat: "Classification – Taxonomy", question: "After Order in the classification order comes __________.", answer: "family" },
+  { cat: "Classification – Taxonomy", question: "After Family in the classification order comes __________.", answer: "genus" },
+  { cat: "Classification – Taxonomy", question: "The most specific classification level is __________.", answer: "species" },
+  { cat: "Classification – Taxonomy", question: "The mnemonic for the classification order is: King Philip Came Over For __________ Soup.", answer: "good" },
+  { cat: "Classification – Taxonomy", question: "__________ is the science of classifying living things.", answer: "taxonomy" },
+  { cat: "Classification – Taxonomy", question: "Organisms are classified into the group with which they share the greatest number of __________.", answer: "characteristics" },
+  { cat: "Classification – Taxonomy", question: "Scientific names for organisms are written in __________.", answer: "latin" },
+  { cat: "Classification – Taxonomy", question: "In a scientific name (e.g., Panthera leo), the genus is __________ and the species is lowercase.", answer: "capitalized" },
+
+  // ── Kingdom Characteristics – Cell Type ──────────────────────────────────
+  { cat: "Kingdom Characteristics – Cell Type", question: "Moneara's cell type is __________.", answer: "prokaryotic" },
+  { cat: "Kingdom Characteristics – Cell Type", question: "Protista's cell type is __________.", answer: "eukaryotic" },
+  { cat: "Kingdom Characteristics – Cell Type", question: "Fungi's cell type is __________.", answer: "eukaryotic" },
+  { cat: "Kingdom Characteristics – Cell Type", question: "Plantae's cell type is __________.", answer: "eukaryotic" },
+  { cat: "Kingdom Characteristics – Cell Type", question: "Animalia's cell type is __________.", answer: "eukaryotic" },
+
+  // ── Kingdom Characteristics – Number of Cells ────────────────────────────
+  { cat: "Kingdom Characteristics – Number of Cells", question: "Moneara organisms are __________.", answer: "unicellular" },
+  { cat: "Kingdom Characteristics – Number of Cells", question: "Protista can be either __________ or __________.", answer: "unicellular,multicellular" },
+  { cat: "Kingdom Characteristics – Number of Cells", question: "Fungi organisms are __________.", answer: "multicellular" },
+  { cat: "Kingdom Characteristics – Number of Cells", question: "Plantae organisms are __________.", answer: "multicellular" },
+  { cat: "Kingdom Characteristics – Number of Cells", question: "Animalia organisms are __________.", answer: "multicellular" },
+
+  // ── Kingdom Characteristics – Cell Nucleus ────────────────────────────────
+  { cat: "Kingdom Characteristics – Cell Nucleus", question: "The cell nucleus in Moneara is __________.", answer: "absent" },
+  { cat: "Kingdom Characteristics – Cell Nucleus", question: "The cell nucleus in Protista is __________.", answer: "present" },
+  { cat: "Kingdom Characteristics – Cell Nucleus", question: "The cell nucleus in Fungi is __________.", answer: "present" },
+  { cat: "Kingdom Characteristics – Cell Nucleus", question: "The cell nucleus in Plantae is __________.", answer: "present" },
+  { cat: "Kingdom Characteristics – Cell Nucleus", question: "The cell nucleus in Animalia is __________.", answer: "present" },
+
+  // ── Kingdom Characteristics – Cell Wall ──────────────────────────────────
+  { cat: "Kingdom Characteristics – Cell Wall", question: "The cell wall in Moneara is __________.", answer: "present" },
+  { cat: "Kingdom Characteristics – Cell Wall", question: "For Protista, the cell wall is present in __________ organisms.", answer: "some" },
+  { cat: "Kingdom Characteristics – Cell Wall", question: "The cell wall in Fungi is __________.", answer: "present" },
+  { cat: "Kingdom Characteristics – Cell Wall", question: "The cell wall in Plantae is __________.", answer: "present" },
+  { cat: "Kingdom Characteristics – Cell Wall", question: "The cell wall in Animalia is __________.", answer: "absent" },
+
+  // ── Kingdom Characteristics – Nutrition ──────────────────────────────────
+  { cat: "Kingdom Characteristics – Nutrition", question: "Moneara's nutrition type is __________ (autotrophic and heterotrophic).", answer: "both" },
+  { cat: "Kingdom Characteristics – Nutrition", question: "Protista's nutrition type is __________ (autotrophic and heterotrophic).", answer: "both" },
+  { cat: "Kingdom Characteristics – Nutrition", question: "Fungi's nutrition type is __________.", answer: "heterotrophic" },
+  { cat: "Kingdom Characteristics – Nutrition", question: "Plantae's nutrition type is __________.", answer: "autotrophic" },
+  { cat: "Kingdom Characteristics – Nutrition", question: "Animalia's nutrition type is __________.", answer: "heterotrophic" },
+];
+
+initQuiz(questions);
+</script>
+</body>
+</html>
