@@ -3,7 +3,7 @@ import type { Question } from './types';
 export const perchQuestions: Question[] = [
   // Overview
   { cat: "Overview", question: "Perch are vertebrates belonging to a group called the __________ fishes.", answer: "ray finned" },
-  { cat: "Overview", question: "Ray-finned fishes are the largest group of vertebrates, with __________ or more species.", answer: "20,000" },
+  { cat: "Overview", question: "Ray-finned fishes are the largest group of vertebrates, with __________ or more species.", answer: "20000" },
   { cat: "Overview", question: "Perch __________ provide propulsion, maneuverability, and stabilization.", answer: "fins" },
   { cat: "Overview", question: "Perch use __________ for respiration.", answer: "gills" },
 
