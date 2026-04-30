@@ -43,4 +43,11 @@ export const perchQuestions: Question[] = [
   { cat: "Internal Structures", question: "The pancreas produces __________ for digestion and also produces __________.", answer: "enzymes,insulin" },
   { cat: "Internal Structures", question: "The spleen is part of the __________ system and filters and stores blood.", answer: "immune" },
   { cat: "Internal Structures", question: "The ovary produces __________ and the testes produce __________.", answer: "eggs,sperm" },
+
+    // Fins
+  { cat: "Fins", question: "The __________ fin provides stability.", answer: "dorsal" },
+  { cat: "Fins", question: "The __________ fin is located on the front and provides stability.", answer: "cranial" },
+  { cat: "Fins", question: "The __________ fin is located on the back and provides movement forward.", answer: "caudal" },
+  { cat: "Fins", question: "The __________ fins are used for maneuvering.", answer: "pelvic,pectoral" },
+  { cat: "Fins", question: "The __________ fin provides stability.", answer: "anal" },
 ];
