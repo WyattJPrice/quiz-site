@@ -1,81 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nervous System — Bio Study</title>
-<link rel="stylesheet" href="../styles.css">
-</head>
-<body>
-<div class="container">
+import type { Question } from './types';
 
-  <a class="back-link" href="/">← All Quizzes</a>
-
-  <header class="header">
-    <span class="subtitle">Biology · Fill in the Blank</span>
-    <div class="title">Nervous System</div>
-  </header>
-
-  <div class="scorebar">
-    <div class="score-item">
-      <span class="score-dot correct"></span>
-      <span class="score-val" id="correct-count">0</span>
-      <span class="score-label">correct</span>
-    </div>
-    <div class="score-item">
-      <span class="score-dot wrong"></span>
-      <span class="score-val" id="wrong-count">0</span>
-      <span class="score-label">wrong</span>
-    </div>
-    <div class="progress-wrap">
-      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
-    </div>
-    <div class="q-counter" id="q-counter">1 / 80</div>
-  </div>
-
-  <div id="quiz-area">
-    <div class="card" id="question-card">
-      <div class="category-badge" id="category-badge"></div>
-      <div class="question-text" id="question-display"></div>
-      <div class="blank-label" id="blank-label">Your answer</div>
-      <div id="inputs-area"></div>
-      <div class="feedback" id="feedback">
-        <span class="feedback-icon"></span>
-        <span class="feedback-text"></span>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="submit-btn" onclick="checkAnswer()">Check Answer</button>
-        <button class="btn btn-skip" onclick="nextQuestion()">Skip →</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="complete" id="complete-screen">
-    <div class="complete-icon">🧠</div>
-    <h2>Study session complete!</h2>
-    <p id="complete-sub"></p>
-    <div class="final-stats">
-      <div class="stat-big green"><span class="num" id="final-correct">0</span><span class="lbl">Correct</span></div>
-      <div class="stat-big red"><span class="num" id="final-wrong">0</span><span class="lbl">Wrong</span></div>
-      <div class="stat-big"><span class="num" id="final-pct" style="color:var(--accent)">0%</span><span class="lbl">Score</span></div>
-    </div>
-    <button class="btn btn-restart" onclick="restart()">Study Again</button>
-  </div>
-
-</div>
-
-<div class="toast" id="fuzzy-toast">
-  <span class="toast-icon">💡</span>
-  <div class="toast-body">
-    <div class="toast-title">Close enough — marked correct</div>
-    <div class="toast-msg" id="toast-msg"></div>
-  </div>
-  <button class="toast-close" onclick="dismissToast()">✕</button>
-</div>
-
-<script src="../quiz.js"></script>
-<script>
-const questions = [
+export const nervousQuestions: Question[] = [
   { cat: "Vocabulary", question: "The __________ is the body system that collects, processes, and responds to information using electrical signals.", answer: "nervous system" },
   { cat: "Vocabulary", question: "A __________ is a nerve cell and the basic unit of the nervous system.", answer: "neuron" },
   { cat: "Vocabulary", question: "A __________ is a cell that supports and protects neurons.", answer: "glial cell" },
@@ -157,8 +82,3 @@ const questions = [
   { cat: "Neuron Detail", question: "__________ is the neurotransmitter at a neuromuscular junction.", answer: "acetylcholine" },
   { cat: "Neuron Detail", question: "At a neuromuscular junction, acetylcholine released from an __________ depolarizes the muscle cell membrane and triggers muscle contractions.", answer: "axon terminal" },
 ];
-
-initQuiz(questions);
-</script>
-</body>
-</html>
