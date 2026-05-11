@@ -6,6 +6,7 @@ import { skinEyeQuestions } from './skin-eye';
 import { bacteriaVirusQuestions } from './bacteria-virus';
 import { perchQuestions } from './perch';
 import { protistQuestions } from './protist';
+import { endocrineDiseaseQuestions } from './endocrine-disease';
 
 export const quizzes: QuizMeta[] = [
   {
@@ -56,6 +57,13 @@ export const quizzes: QuizMeta[] = [
     icon: '🔬',
     description: 'Protozoa, algae, slime molds, and their key protist examples',
     questions: protistQuestions,
+  },
+  {
+    slug: 'endocrine-disease',
+    title: 'Endocrine System & Diseases',
+    icon: '🧬',
+    description: 'Glands, hormones, and the four disease types: infectious, inherited, deficiency, and hormonal',
+    questions: endocrineDiseaseQuestions,
   },
 ];
 

@@ -8,6 +8,9 @@ out/
 # build
 dist/
 
+# TypeScript
+*.tsbuildinfo
+
 # env files
 .env
 .env.local
