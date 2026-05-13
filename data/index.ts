@@ -7,6 +7,7 @@ import { bacteriaVirusQuestions } from './bacteria-virus';
 import { perchQuestions } from './perch';
 import { protistQuestions } from './protist';
 import { endocrineDiseaseQuestions } from './endocrine-disease';
+import { eggEmbryoQuestions } from './egg-embryo';
 
 export const quizzes: QuizMeta[] = [
   {
@@ -64,6 +65,13 @@ export const quizzes: QuizMeta[] = [
     icon: '🧬',
     description: 'Glands, hormones, and the four disease types: infectious, inherited, deficiency, and hormonal',
     questions: endocrineDiseaseQuestions,
+  },
+  {
+    slug: 'egg-embryo',
+    title: "Bird's Egg & Mammal Embryo",
+    icon: '🥚',
+    description: "Structures of a bird's egg and mammal embryo, including protective membranes and nutrient systems",
+    questions: eggEmbryoQuestions,
   },
 ];
 
