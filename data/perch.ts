@@ -3,7 +3,7 @@ import type { Question } from './types';
 export const perchQuestions: Question[] = [
   // Overview
   { cat: "Overview", question: "Perch are vertebrates belonging to a group called the __________ fishes.", answer: "ray finned" },
-  { cat: "Overview", question: "Ray-finned fishes are the largest group of vertebrates, with __________ or more species.", answer: "20,000" },
+  { cat: "Overview", question: "Ray-finned fishes are the largest group of vertebrates, with __________ or more species.", answer: "20000" },
   { cat: "Overview", question: "Perch __________ provide propulsion, maneuverability, and stabilization.", answer: "fins" },
   { cat: "Overview", question: "Perch use __________ for respiration.", answer: "gills" },
 
@@ -43,4 +43,10 @@ export const perchQuestions: Question[] = [
   { cat: "Internal Structures", question: "The pancreas produces __________ for digestion and also produces __________.", answer: "enzymes,insulin" },
   { cat: "Internal Structures", question: "The spleen is part of the __________ system and filters and stores blood.", answer: "immune" },
   { cat: "Internal Structures", question: "The ovary produces __________ and the testes produce __________.", answer: "eggs,sperm" },
+
+    // Fins
+  { cat: "Fins", question: "The __________ fins provides stability.", answer: "dorsal,anal" },
+  { cat: "Fins", question: "The __________ fin is located on the back and provides movement forward.", answer: "caudal" },
+  { cat: "Fins", question: "The __________ fins are used for maneuvering.", answer: "pelvic,pectoral" },
+  { cat: "Fins", question: "The __________ fin provides stability.", answer: "anal" },
 ];
