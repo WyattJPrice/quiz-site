@@ -1,21 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import type { Question } from '@/data/types';
 import { shuffle } from '@/lib/quiz';
-import {
-  generateRound,
-  generateChoices,
-  updateAfterAnswer,
-  isSessionComplete,
-  getMasteredCount,
-} from '@/lib/learn-algorithm';
-import {
-  loadProgress,
-  saveProgress,
-  resetProgress,
-  createFreshState,
-} from '@/lib/learn-storage';
+import { generateChoices, getCorrectAnswer } from '@/lib/learn-algorithm';
+import { loadProgress, saveProgress, resetProgress } from '@/lib/learn-storage';
 import type { LearnSessionState } from '@/lib/learn-types';
 
 interface Props {
@@ -26,94 +15,38 @@ interface Props {
 export default function LearnEngine({ questions, slug }: Props) {
   const [mounted, setMounted] = useState(false);
   const [session, setSession] = useState<LearnSessionState | null>(null);
-  const [roundQueue, setRoundQueue] = useState<number[]>([]);
-  const [roundIdx, setRoundIdx] = useState(0);
   const [choices, setChoices] = useState<string[]>([]);
   const [choiceResult, setChoiceResult] = useState<Record<string, 'correct' | 'wrong'>>({});
   const [answered, setAnswered] = useState(false);
   const [cardClass, setCardClass] = useState('');
-  const [showRoundTransition, setShowRoundTransition] = useState(false);
-  const [roundMastered, setRoundMastered] = useState(0);
   const [complete, setComplete] = useState(false);
   const [pendingAdvance, setPendingAdvance] = useState(false);
 
+  function createFreshSession(): LearnSessionState {
+    return {
+      slug,
+      remaining: shuffle(Array.from({ length: questions.length }, (_, i) => i)),
+      wrongPile: [],
+      currentIdx: 0,
+      round: 1,
+      totalCorrect: 0,
+      totalWrong: 0,
+    };
+  }
+
   useEffect(() => {
     const existing = loadProgress(slug);
-    const state = existing && existing.questionsProgress.length === questions.length
-      ? existing
-      : createFreshState(slug, questions.length);
+    const isValid =
+      existing &&
+      Array.isArray(existing.remaining) &&
+      Array.isArray(existing.wrongPile) &&
+      existing.remaining.length + existing.wrongPile.length <= questions.length;
+    const state = isValid ? existing : createFreshSession();
     setSession(state);
     saveProgress(state);
+    loadQuestion(state);
     setMounted(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const startRound = useCallback((state: LearnSessionState) => {
-    const queue = generateRound(state.questionsProgress, state.round);
-    if (queue.length === 0) {
-      setComplete(true);
-      return;
-    }
-    setRoundQueue(queue);
-    setRoundIdx(0);
-    setShowRoundTransition(false);
-    setRoundMastered(0);
-
-    const q = questions[queue[0]];
-    const prog = state.questionsProgress[queue[0]];
-    setChoices(generateChoices(q, questions, prog.lastDistractors));
-    setChoiceResult({});
-    setAnswered(false);
-    setCardClass('');
-  }, [questions]);
-
-  useEffect(() => {
-    if (session && mounted) {
-      startRound(session);
-    }
-  }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleChoice(choice: string) {
-    if (answered || !session) return;
-    setAnswered(true);
-
-    const qIdx = roundQueue[roundIdx];
-    const q = questions[qIdx];
-    const correctAnswer = q.choices
-      ? q.answer
-      : (q.answer.includes(',') ? q.answer.split(',')[0] : q.answer);
-    const isCorrect =
-      choice.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
-
-    const results: Record<string, 'correct' | 'wrong'> = {};
-    if (isCorrect) {
-      results[choice] = 'correct';
-      setCardClass('correct-state pop');
-    } else {
-      results[choice] = 'wrong';
-      results[correctAnswer] = 'correct';
-      setCardClass('wrong-state shake');
-    }
-    setChoiceResult(results);
-
-    const updatedProgress = [...session.questionsProgress];
-    const updated = updateAfterAnswer(updatedProgress[qIdx], isCorrect, session.round);
-    updated.lastDistractors = choices.filter(
-      (c) => c.toLowerCase().trim() !== correctAnswer.toLowerCase().trim()
-    );
-    updatedProgress[qIdx] = updated;
-
-    const newSession = { ...session, questionsProgress: updatedProgress };
-    setSession(newSession);
-    saveProgress(newSession);
-
-    if (updated.mastered) {
-      setRoundMastered((prev) => prev + 1);
-    }
-
-    if (isCorrect) {
-      setTimeout(() => setPendingAdvance(true), 900);
-    }
-  }
 
   useEffect(() => {
     if (pendingAdvance) {
@@ -122,88 +55,109 @@ export default function LearnEngine({ questions, slug }: Props) {
     }
   }, [pendingAdvance]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function advance() {
-    if (!session) return;
-    const nextIdx = roundIdx + 1;
-
-    if (nextIdx >= roundQueue.length) {
-      if (isSessionComplete(session.questionsProgress)) {
-        setComplete(true);
-        return;
-      }
-      const newSession = { ...session, round: session.round + 1 };
-      setSession(newSession);
-      saveProgress(newSession);
-      setShowRoundTransition(true);
-      return;
-    }
-
-    setRoundIdx(nextIdx);
-    const qIdx = roundQueue[nextIdx];
+  function loadQuestion(state: LearnSessionState) {
+    const qIdx = state.remaining[state.currentIdx];
+    if (qIdx === undefined) return;
     const q = questions[qIdx];
-    const prog = session.questionsProgress[qIdx];
-    setChoices(generateChoices(q, questions, prog.lastDistractors));
+    setChoices(generateChoices(q, questions));
     setChoiceResult({});
     setAnswered(false);
     setCardClass('');
   }
 
-  function continueAfterTransition() {
+  function handleChoice(choice: string) {
+    if (answered || !session) return;
+    setAnswered(true);
+
+    const qIdx = session.remaining[session.currentIdx];
+    const q = questions[qIdx];
+    const correct = getCorrectAnswer(q);
+    const isCorrect = choice.toLowerCase().trim() === correct.toLowerCase().trim();
+
+    const results: Record<string, 'correct' | 'wrong'> = {};
+    if (isCorrect) {
+      results[choice] = 'correct';
+      setCardClass('correct-state pop');
+    } else {
+      results[choice] = 'wrong';
+      results[correct] = 'correct';
+      setCardClass('wrong-state shake');
+    }
+    setChoiceResult(results);
+
+    const updated = { ...session };
+    if (isCorrect) {
+      updated.totalCorrect++;
+    } else {
+      updated.totalWrong++;
+      updated.wrongPile = [...updated.wrongPile, qIdx];
+    }
+    setSession(updated);
+    saveProgress(updated);
+
+    if (isCorrect) {
+      setTimeout(() => setPendingAdvance(true), 900);
+    }
+  }
+
+  function advance() {
     if (!session) return;
-    startRound(session);
+
+    const nextIdx = session.currentIdx + 1;
+
+    if (nextIdx >= session.remaining.length) {
+      // Finished this pass — move to wrong pile
+      if (session.wrongPile.length === 0) {
+        setComplete(true);
+        resetProgress(slug);
+        return;
+      }
+      const newSession: LearnSessionState = {
+        ...session,
+        remaining: shuffle(session.wrongPile),
+        wrongPile: [],
+        currentIdx: 0,
+        round: session.round + 1,
+      };
+      setSession(newSession);
+      saveProgress(newSession);
+      loadQuestion(newSession);
+      return;
+    }
+
+    const updated = { ...session, currentIdx: nextIdx };
+    setSession(updated);
+    saveProgress(updated);
+    loadQuestion(updated);
   }
 
   function handleReset() {
-    if (!confirm('Reset all progress for this quiz?')) return;
     resetProgress(slug);
-    const fresh = createFreshState(slug, questions.length);
+    const fresh = createFreshSession();
     setSession(fresh);
     saveProgress(fresh);
+    loadQuestion(fresh);
     setComplete(false);
-    startRound(fresh);
   }
 
   if (!mounted || !session) return null;
 
-  const mastered = getMasteredCount(session.questionsProgress);
-  const total = questions.length;
-  const progressPct = (mastered / total) * 100;
-
   if (complete) {
-    const totalAttempts = session.questionsProgress.reduce((s, p) => s + p.totalAttempts, 0);
-    const hardest = [...session.questionsProgress]
-      .sort((a, b) => b.totalMisses - a.totalMisses)
-      .slice(0, 3)
-      .filter((p) => p.totalMisses > 0);
-
     return (
       <div className="complete show">
-        <div className="complete-icon">🏆</div>
-        <h2>All questions mastered!</h2>
-        <p>You completed {session.round + 1} rounds with {totalAttempts} total attempts.</p>
+        <div className="complete-icon">&#10003;</div>
+        <h2>All questions correct!</h2>
+        <p>Finished in {session.round} round{session.round > 1 ? 's' : ''} with {session.totalCorrect} correct and {session.totalWrong} wrong answers total.</p>
         <div className="final-stats">
           <div className="stat-big green">
-            <span className="num">{total}</span>
-            <span className="lbl">Mastered</span>
+            <span className="num">{questions.length}</span>
+            <span className="lbl">Questions</span>
           </div>
           <div className="stat-big">
-            <span className="num" style={{ color: 'var(--accent)' }}>{session.round + 1}</span>
+            <span className="num" style={{ color: 'var(--accent)' }}>{session.round}</span>
             <span className="lbl">Rounds</span>
           </div>
         </div>
-        {hardest.length > 0 && (
-          <div className="learn-hardest">
-            <span className="learn-hardest-title">Hardest questions</span>
-            {hardest.map((p) => (
-              <div key={p.questionIndex} className="learn-hardest-item">
-                <span className="learn-hardest-q">
-                  {questions[p.questionIndex].question.replace(/_{5,}/g, '___').slice(0, 60)}...
-                </span>
-                <span className="learn-hardest-misses">{p.totalMisses} miss{p.totalMisses > 1 ? 'es' : ''}</span>
-              </div>
-            ))}
-          </div>
-        )}
         <button className="btn btn-restart" onClick={handleReset}>
           Study Again
         </button>
@@ -211,33 +165,10 @@ export default function LearnEngine({ questions, slug }: Props) {
     );
   }
 
-  if (showRoundTransition) {
-    const remaining = total - mastered;
-    return (
-      <div className="learn-transition show">
-        <div className="learn-transition-icon">✓</div>
-        <h2>Round {session.round} complete!</h2>
-        {roundMastered > 0 && (
-          <p className="learn-transition-mastered">
-            {roundMastered} question{roundMastered > 1 ? 's' : ''} mastered this round
-          </p>
-        )}
-        <p>{remaining} question{remaining !== 1 ? 's' : ''} remaining</p>
-        <div className="learn-progress-bar">
-          <div className="learn-progress-fill" style={{ width: `${progressPct}%` }} />
-        </div>
-        <span className="learn-progress-label">{mastered}/{total} mastered</span>
-        <button className="btn btn-primary" onClick={continueAfterTransition}>
-          Continue
-        </button>
-      </div>
-    );
-  }
-
-  const qIdx = roundQueue[roundIdx];
+  const qIdx = session.remaining[session.currentIdx];
   if (qIdx === undefined) return null;
   const q = questions[qIdx];
-  const prog = session.questionsProgress[qIdx];
+  const progressPct = ((session.currentIdx) / session.remaining.length) * 100;
 
   return (
     <>
@@ -246,8 +177,10 @@ export default function LearnEngine({ questions, slug }: Props) {
           <div className="learn-progress-fill" style={{ width: `${progressPct}%` }} />
         </div>
         <div className="learn-topbar-info">
-          <span className="learn-mastery-count">{mastered}/{total} mastered</span>
-          <span className="q-counter">Round {session.round + 1} · {roundIdx + 1}/{roundQueue.length}</span>
+          <span className="learn-mastery-count">
+            Round {session.round} {session.wrongPile.length > 0 && `· ${session.wrongPile.length} wrong`}
+          </span>
+          <span className="q-counter">{session.currentIdx + 1}/{session.remaining.length}</span>
         </div>
       </div>
 
@@ -261,12 +194,6 @@ export default function LearnEngine({ questions, slug }: Props) {
         <div className="question-text">
           {q.question.replace(/_{5,}/g, '_____')}
         </div>
-
-        {prog.totalMisses > 0 && !answered && (
-          <div className="learn-miss-badge">
-            Missed {prog.totalMisses} time{prog.totalMisses > 1 ? 's' : ''} before
-          </div>
-        )}
 
         <div className="blank-label">Choose one:</div>
         <div>
@@ -286,7 +213,7 @@ export default function LearnEngine({ questions, slug }: Props) {
           })}
         </div>
 
-        {answered && (
+        {answered && choiceResult[Object.keys(choiceResult).find(k => choiceResult[k] === 'wrong') || ''] && (
           <div className="btn-row">
             <button className="btn btn-primary" onClick={advance}>
               Continue
