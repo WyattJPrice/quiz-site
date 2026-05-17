@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Question } from '@/data/types';
-import { shuffle } from '@/lib/quiz';
+import { shuffle, normalize, isFuzzyMatch } from '@/lib/quiz';
 import { generateChoices, getCorrectAnswer } from '@/lib/learn-algorithm';
 import { loadProgress, saveProgress, resetProgress } from '@/lib/learn-storage';
 import type { LearnSessionState } from '@/lib/learn-types';
@@ -21,6 +21,12 @@ export default function LearnEngine({ questions, slug }: Props) {
   const [cardClass, setCardClass] = useState('');
   const [complete, setComplete] = useState(false);
   const [pendingAdvance, setPendingAdvance] = useState(false);
+
+  // Fill-in-blank state
+  const [inputValue, setInputValue] = useState('');
+  const [inputState, setInputState] = useState<'neutral' | 'correct' | 'wrong'>('neutral');
+  const [showReveal, setShowReveal] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   function createFreshSession(): LearnSessionState {
     return {
@@ -59,10 +65,30 @@ export default function LearnEngine({ questions, slug }: Props) {
     const qIdx = state.remaining[state.currentIdx];
     if (qIdx === undefined) return;
     const q = questions[qIdx];
-    setChoices(generateChoices(q, questions));
+    if (q.choices) {
+      setChoices(generateChoices(q, questions));
+    }
     setChoiceResult({});
     setAnswered(false);
     setCardClass('');
+    setInputValue('');
+    setInputState('neutral');
+    setShowReveal(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
+  function markAnswer(isCorrect: boolean) {
+    if (!session) return;
+    const qIdx = session.remaining[session.currentIdx];
+    const updated = { ...session };
+    if (isCorrect) {
+      updated.totalCorrect++;
+    } else {
+      updated.totalWrong++;
+      updated.wrongPile = [...updated.wrongPile, qIdx];
+    }
+    setSession(updated);
+    saveProgress(updated);
   }
 
   function handleChoice(choice: string) {
@@ -84,19 +110,49 @@ export default function LearnEngine({ questions, slug }: Props) {
       setCardClass('wrong-state shake');
     }
     setChoiceResult(results);
-
-    const updated = { ...session };
-    if (isCorrect) {
-      updated.totalCorrect++;
-    } else {
-      updated.totalWrong++;
-      updated.wrongPile = [...updated.wrongPile, qIdx];
-    }
-    setSession(updated);
-    saveProgress(updated);
+    markAnswer(isCorrect);
 
     if (isCorrect) {
       setTimeout(() => setPendingAdvance(true), 900);
+    }
+  }
+
+  function handleSubmitInput() {
+    if (answered || !session || !inputValue.trim()) return;
+    setAnswered(true);
+
+    const qIdx = session.remaining[session.currentIdx];
+    const q = questions[qIdx];
+    const correct = getCorrectAnswer(q);
+    const validOptions = correct.includes('/') ? correct.split('/') : [correct];
+
+    const normalizedInput = normalize(inputValue);
+    const isExact = validOptions.some((opt) => normalize(opt) === normalizedInput);
+    const isFuzzy = !isExact && isFuzzyMatch(inputValue, validOptions);
+    const isCorrect = isExact || isFuzzy;
+
+    if (isCorrect) {
+      setInputState('correct');
+      setCardClass('correct-state pop');
+    } else {
+      setInputState('wrong');
+      setCardClass('wrong-state shake');
+      setShowReveal(true);
+    }
+    markAnswer(isCorrect);
+
+    if (isCorrect) {
+      setTimeout(() => setPendingAdvance(true), 900);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      if (answered) {
+        advance();
+      } else {
+        handleSubmitInput();
+      }
     }
   }
 
@@ -106,7 +162,6 @@ export default function LearnEngine({ questions, slug }: Props) {
     const nextIdx = session.currentIdx + 1;
 
     if (nextIdx >= session.remaining.length) {
-      // Finished this pass — move to wrong pile
       if (session.wrongPile.length === 0) {
         setComplete(true);
         resetProgress(slug);
@@ -168,6 +223,7 @@ export default function LearnEngine({ questions, slug }: Props) {
   const qIdx = session.remaining[session.currentIdx];
   if (qIdx === undefined) return null;
   const q = questions[qIdx];
+  const isChoice = !!q.choices;
   const progressPct = ((session.currentIdx) / session.remaining.length) * 100;
 
   return (
@@ -195,25 +251,70 @@ export default function LearnEngine({ questions, slug }: Props) {
           {q.question.replace(/_{5,}/g, '_____')}
         </div>
 
-        <div className="blank-label">Choose one:</div>
-        <div>
-          {choices.map((choice, i) => {
-            const r = choiceResult[choice];
-            const cls = `mc-choice${r === 'correct' ? ' mc-correct' : ''}${r === 'wrong' ? ' mc-wrong' : ''}`;
-            return (
-              <button
-                key={`${choice}-${i}`}
-                className={cls}
-                onClick={() => handleChoice(choice)}
+        {isChoice ? (
+          <>
+            <div className="blank-label">Choose one:</div>
+            <div>
+              {choices.map((choice, i) => {
+                const r = choiceResult[choice];
+                const cls = `mc-choice${r === 'correct' ? ' mc-correct' : ''}${r === 'wrong' ? ' mc-wrong' : ''}`;
+                return (
+                  <button
+                    key={`${choice}-${i}`}
+                    className={cls}
+                    onClick={() => handleChoice(choice)}
+                    disabled={answered}
+                  >
+                    {choice}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="blank-label">Your answer</div>
+            <div className="input-wrap">
+              <input
+                ref={inputRef}
+                type="text"
+                className={`blank-input ${inputState}`}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
                 disabled={answered}
-              >
-                {choice}
-              </button>
-            );
-          })}
-        </div>
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            {showReveal && (
+              <div className="correct-answer-reveal show">
+                Correct answer: {getCorrectAnswer(q)}
+              </div>
+            )}
+            {!answered && (
+              <div className="btn-row">
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSubmitInput}
+                  disabled={!inputValue.trim()}
+                >
+                  Check
+                </button>
+              </div>
+            )}
+          </>
+        )}
 
-        {answered && choiceResult[Object.keys(choiceResult).find(k => choiceResult[k] === 'wrong') || ''] && (
+        {answered && !isChoice && inputState === 'wrong' && (
+          <div className="btn-row">
+            <button className="btn btn-primary" onClick={advance}>
+              Continue
+            </button>
+          </div>
+        )}
+
+        {answered && isChoice && choiceResult[Object.keys(choiceResult).find(k => choiceResult[k] === 'wrong') || ''] && (
           <div className="btn-row">
             <button className="btn btn-primary" onClick={advance}>
               Continue

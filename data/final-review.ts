@@ -772,61 +772,40 @@ export const finalReviewQuestions: Question[] = [
     ]
   },
 
-  // Word Bank terms (#1–#7 from word bank)
+  // Word Bank terms (#1–#7 from word bank) — fill in the blank
   {
     cat: "Word Bank",
-    question: "What is a saprophyte?",
-    answer: "An organism that feeds on dead matter",
-    choices: [
-      "An organism that feeds on dead matter",
-      "An organism that produces its own food",
-      "An organism that lives inside a host",
-      "An organism that feeds on living plants"
-    ]
+    question: "__________ : an organism that feeds on dead matter.",
+    answer: "saprophyte"
   },
   {
     cat: "Word Bank",
-    question: "What is an endospore?",
-    answer: "A thick internal wall that encloses a bacterium's DNA and essential parts",
-    choices: [
-      "A thick internal wall that encloses a bacterium's DNA and essential parts",
-      "A reproductive structure that produces new bacterial colonies",
-      "An external membrane used for locomotion",
-      "A photosynthetic organelle found in cyanobacteria"
-    ]
+    question: "__________ : the science dealing with the description, identification, naming, and classifying organisms.",
+    answer: "taxonomy"
   },
   {
     cat: "Word Bank",
-    question: "What are phytoplankton?",
-    answer: "Mostly microscopic photosynthetic organisms near the water surface",
-    choices: [
-      "Mostly microscopic photosynthetic organisms near the water surface",
-      "Large multicellular marine algae found on the ocean floor",
-      "Floating animal-like organisms that feed on bacteria",
-      "Fungi-like protists that decompose dead matter"
-    ]
+    question: "__________ : a thick internal wall, made of several hard layers, produced by the bacterium, that encloses its DNA and other essential parts.",
+    answer: "endospore"
   },
   {
     cat: "Word Bank",
-    question: "What are protozoans?",
-    answer: "Animal-like protists",
-    choices: ["Animal-like protists", "Plant-like protists", "Fungi-like protists", "Bacteria-like protists"]
+    question: "__________ : mostly microscopic photosynthetic organisms that drift or swim near the surface of ponds, lakes, and oceans.",
+    answer: "phytoplankton"
   },
   {
     cat: "Word Bank",
-    question: "What are algae?",
-    answer: "Plant-like protists",
-    choices: ["Plant-like protists", "Animal-like protists", "Fungi-like protists", "Bacteria-like organisms"]
+    question: "__________ : animal-like protists.",
+    answer: "protozoans"
   },
   {
     cat: "Word Bank",
-    question: "What are seaweeds?",
-    answer: "Large, multicellular marine algae",
-    choices: [
-      "Large, multicellular marine algae",
-      "Microscopic single-celled protozoans",
-      "Fungi-like protists that live in salt water",
-      "Bacteria that grow in colonies on rocks"
-    ]
+    question: "__________ : plant-like protists.",
+    answer: "algae"
+  },
+  {
+    cat: "Word Bank",
+    question: "__________ : large, multicellular marine algae.",
+    answer: "seaweeds"
   },
 ];
