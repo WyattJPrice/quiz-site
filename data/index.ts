@@ -8,6 +8,7 @@ import { perchQuestions } from './perch';
 import { protistQuestions } from './protist';
 import { endocrineDiseaseQuestions } from './endocrine-disease';
 import { eggEmbryoQuestions } from './egg-embryo';
+import { finalReviewQuestions } from './final-review';
 
 export const quizzes: QuizMeta[] = [
   {
@@ -72,6 +73,13 @@ export const quizzes: QuizMeta[] = [
     icon: '🥚',
     description: "Structures of a bird's egg and mammal embryo, including protective membranes and nutrient systems",
     questions: eggEmbryoQuestions,
+  },
+  {
+    slug: 'final-review',
+    title: 'Biology Final Review',
+    icon: '📋',
+    description: 'Comprehensive review covering taxonomy, viruses, protists, arthropods, fish, body systems, and more',
+    questions: finalReviewQuestions,
   },
 ];
 

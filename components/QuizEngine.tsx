@@ -8,12 +8,13 @@ type BlankState = 'neutral' | 'correct' | 'wrong';
 type ChoiceResult = 'correct' | 'wrong' | undefined;
 
 export default function QuizEngine({ questions }: { questions: Question[] }) {
-  const [deck, setDeck] = useState<Question[]>(() => shuffle(questions));
+  const [deck, setDeck] = useState<Question[]>(questions);
   const [idx, setIdx] = useState(0);
   const [scoreCorrect, setScoreCorrect] = useState(0);
   const [scoreWrong, setScoreWrong] = useState(0);
   const [complete, setComplete] = useState(false);
   const [answered, setAnswered] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Fill-in-blank
   const [inputValues, setInputValues] = useState<string[]>([]);
@@ -40,6 +41,11 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
   const answers = q?.answer.split(',') ?? [];
   const isChoice = !!q?.choices;
   const isMulti = answers.length > 1;
+
+  useEffect(() => {
+    setDeck(shuffle(questions));
+    setMounted(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset per-question state when question changes
   useEffect(() => {
@@ -233,7 +239,7 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
   const formatQ = (text: string) =>
     text.replace(/\*{3,}|_{5,}/g, '<span class="blank-hl">_____</span>');
 
-  if (!q && !complete) return null;
+  if (!mounted || (!q && !complete)) return null;
 
   if (complete) {
     return (
