@@ -20,17 +20,22 @@ export default function HomePage() {
 
       <div className="index-grid">
         {quizzes.map((quiz) => (
-          <Link key={quiz.slug} href={`/quiz/${quiz.slug}`} className="quiz-card">
-            <div className="quiz-card-inner">
-              <div className="quiz-card-emoji-wrap">{quiz.icon}</div>
-              <div className="quiz-card-title">{quiz.title}</div>
-              <div className="quiz-card-desc">{quiz.description}</div>
-              <div className="quiz-card-footer">
-                <span className="quiz-card-meta">{quiz.questions.length} questions</span>
-                <span className="quiz-card-arrow">→</span>
+          <div key={quiz.slug} className="quiz-card-wrap">
+            <Link href={`/learn/${quiz.slug}`} className="quiz-card">
+              <div className="quiz-card-inner">
+                <div className="quiz-card-emoji-wrap">{quiz.icon}</div>
+                <div className="quiz-card-title">{quiz.title}</div>
+                <div className="quiz-card-desc">{quiz.description}</div>
+                <div className="quiz-card-footer">
+                  <span className="quiz-card-meta">{quiz.questions.length} questions</span>
+                  <span className="quiz-card-arrow">→</span>
+                </div>
               </div>
-            </div>
-          </Link>
+            </Link>
+            <Link href={`/quiz/${quiz.slug}`} className="learn-link">
+              Test
+            </Link>
+          </div>
         ))}
       </div>
     </main>
