@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Syne, DM_Mono } from 'next/font/google';
+import ThemeToggle from '@/components/ThemeToggle';
 import './globals.css';
 
 const syne = Syne({
@@ -19,10 +20,18 @@ export const metadata: Metadata = {
   description: 'Interactive study quizzes — multiple choice, fill-in-the-blank, and learn mode',
 };
 
+const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={`${syne.variable} ${dmMono.variable}`}>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className={`${syne.variable} ${dmMono.variable}`}>
+        <ThemeToggle />
+        {children}
+      </body>
     </html>
   );
 }
