@@ -11,4 +11,5 @@ export interface QuizMeta {
   icon: string;
   description: string;
   questions: Question[];
+  section?: string;
 }

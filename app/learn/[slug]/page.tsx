@@ -15,7 +15,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const quiz = getQuiz(slug);
-  return { title: quiz ? `Learn · ${quiz.title} — Bio Study` : 'Bio Study' };
+  return { title: quiz ? `Learn · ${quiz.title} — Study Site` : 'Study Site' };
 }
 
 export default async function LearnPage({
@@ -34,7 +34,7 @@ export default async function LearnPage({
       </Link>
 
       <header className="header">
-        <span className="subtitle">Biology · Learn Mode</span>
+        <span className="subtitle">Learn Mode</span>
         <div className="title">{quiz.title}</div>
       </header>
 

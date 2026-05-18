@@ -15,8 +15,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Bio Study',
-  description: 'Interactive biology fill-in-the-blank quizzes',
+  title: 'Study Site',
+  description: 'Interactive study quizzes — multiple choice, fill-in-the-blank, and learn mode',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
