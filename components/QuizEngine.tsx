@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { Question } from '@/data/types';
 import { shuffle, normalize, isFuzzyMatch, getPermutations } from '@/lib/quiz';
 
@@ -34,18 +34,57 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
+  // Filter sidebar
+  const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const allCats = useMemo(
+    () => Array.from(new Set(questions.map((q) => q.cat))),
+    [questions]
+  );
+  const catCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    questions.forEach((q) => { m[q.cat] = (m[q.cat] ?? 0) + 1; });
+    return m;
+  }, [questions]);
+  const filteredCount = useMemo(
+    () => questions.filter((q) => selectedCats.has(q.cat)).length,
+    [questions, selectedCats]
+  );
 
   const q = deck[idx];
   const answers = q?.answer.split(',') ?? [];
   const isChoice = !!q?.choices;
   const isMulti = answers.length > 1;
 
+  // Initial mount — populate selectedCats (triggers deck effect below)
   useEffect(() => {
-    setDeck(shuffle(questions));
+    setSelectedCats(new Set(questions.map((q) => q.cat)));
     setMounted(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rebuild deck whenever the category filter changes
+  useEffect(() => {
+    if (selectedCats.size === 0) {
+      setDeck([]);
+      return;
+    }
+    const filtered = questions.filter((q) => selectedCats.has(q.cat));
+    clearTimeout(advanceTimer.current);
+    setDeck(shuffle(filtered));
+    setIdx(0);
+    setScoreCorrect(0);
+    setScoreWrong(0);
+    setComplete(false);
+    setAnswered(false);
+    setFeedbackType(null);
+    setFeedbackText('');
+    setCardClass('');
+    setToastVisible(false);
+  }, [selectedCats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset per-question state when question changes
   useEffect(() => {
@@ -221,10 +260,20 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
     return () => document.removeEventListener('keydown', handler);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  function toggleCat(cat: string) {
+    setSelectedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
   function restart() {
     clearTimeout(advanceTimer.current);
     clearTimeout(toastTimer.current);
-    setDeck(shuffle(questions));
+    const filtered = questions.filter((q) => selectedCats.has(q.cat));
+    setDeck(shuffle(filtered.length > 0 ? filtered : questions));
     setIdx(0);
     setScoreCorrect(0);
     setScoreWrong(0);
@@ -239,37 +288,133 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
   const formatQ = (text: string) =>
     text.replace(/\*{3,}|_{5,}/g, '<span class="blank-hl">_____</span>');
 
-  if (!mounted || (!q && !complete)) return null;
+  // ── Sidebar ────────────────────────────────────────────────────
+  const sidebar = (
+    <>
+      {sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+      )}
+      <div className={`sidebar${sidebarOpen ? ' open' : ''}`}>
+        <div className="sidebar-header">
+          <span className="sidebar-title">Categories</span>
+          <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>✕</button>
+        </div>
+        <div className="sidebar-actions">
+          <button
+            className="sidebar-action-btn"
+            onClick={() => setSelectedCats(new Set(allCats))}
+          >
+            All
+          </button>
+          <button
+            className="sidebar-action-btn"
+            onClick={() => setSelectedCats(new Set())}
+          >
+            None
+          </button>
+        </div>
+        <div className="sidebar-cats">
+          {allCats.map((cat) => (
+            <div
+              key={cat}
+              className={`sidebar-cat-item${selectedCats.has(cat) ? ' checked' : ''}`}
+              onClick={() => toggleCat(cat)}
+            >
+              <div className="sidebar-cat-check">
+                {selectedCats.has(cat) && <span className="sidebar-cat-check-icon">✓</span>}
+              </div>
+              <span className="sidebar-cat-name">{cat}</span>
+              <span className="sidebar-cat-count">{catCounts[cat]}</span>
+            </div>
+          ))}
+        </div>
+        <div className="sidebar-footer">
+          <span className="sidebar-q-count">
+            <strong>{filteredCount}</strong> / {questions.length} questions active
+          </span>
+        </div>
+      </div>
+    </>
+  );
+
+  // ── Filter bar (shown above scorebar) ──────────────────────────
+  const filterBar = (
+    <div className="filter-bar">
+      <button className="filter-toggle-btn" onClick={() => setSidebarOpen(true)}>
+        <span className="filter-toggle-icon">⊞</span>
+        <span>Categories</span>
+        {selectedCats.size < allCats.length && allCats.length > 0 && (
+          <span className="filter-chip">{selectedCats.size} / {allCats.length}</span>
+        )}
+      </button>
+    </div>
+  );
+
+  if (!mounted) return null;
+
+  // No categories selected
+  if (deck.length === 0) {
+    return (
+      <>
+        {sidebar}
+        {filterBar}
+        <div className="filter-empty">
+          <p>No categories selected.</p>
+          <button
+            className="btn btn-primary"
+            style={{ marginTop: 16 }}
+            onClick={() => setSelectedCats(new Set(allCats))}
+          >
+            Select All
+          </button>
+        </div>
+      </>
+    );
+  }
 
   if (complete) {
     return (
-      <div className="complete show">
-        <div className="complete-icon">🎓</div>
-        <h2>Study session complete!</h2>
-        <p>You&apos;ve gone through all {deck.length} questions.</p>
-        <div className="final-stats">
-          <div className="stat-big green">
-            <span className="num">{scoreCorrect}</span>
-            <span className="lbl">Correct</span>
+      <>
+        {sidebar}
+        <div className="complete show">
+          <div className="complete-icon">🎓</div>
+          <h2>Study session complete!</h2>
+          <p>You&apos;ve gone through all {deck.length} questions.</p>
+          <div className="final-stats">
+            <div className="stat-big green">
+              <span className="num">{scoreCorrect}</span>
+              <span className="lbl">Correct</span>
+            </div>
+            <div className="stat-big red">
+              <span className="num">{scoreWrong}</span>
+              <span className="lbl">Wrong</span>
+            </div>
+            <div className="stat-big">
+              <span className="num" style={{ color: 'var(--accent)' }}>{pct}%</span>
+              <span className="lbl">Score</span>
+            </div>
           </div>
-          <div className="stat-big red">
-            <span className="num">{scoreWrong}</span>
-            <span className="lbl">Wrong</span>
-          </div>
-          <div className="stat-big">
-            <span className="num" style={{ color: 'var(--accent)' }}>{pct}%</span>
-            <span className="lbl">Score</span>
-          </div>
+          <button className="btn btn-restart" onClick={restart}>
+            Study Again
+          </button>
+          <button
+            className="btn btn-skip"
+            style={{ marginTop: 12, display: 'block', width: '100%' }}
+            onClick={() => setSidebarOpen(true)}
+          >
+            Change Categories
+          </button>
         </div>
-        <button className="btn btn-restart" onClick={restart}>
-          Study Again
-        </button>
-      </div>
+      </>
     );
   }
 
   return (
     <>
+      {sidebar}
+
+      {filterBar}
+
       <div className="scorebar">
         <div className="score-item">
           <span className="score-dot correct" />

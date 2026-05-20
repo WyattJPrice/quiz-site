@@ -206,7 +206,7 @@ export const frenchFinalQuestions: Question[] = [
   { cat: 'Possessive Adjectives', question: '__________ fils', answer: 'Ton', choices: TON_TA_TES },
   { cat: 'Possessive Adjectives', question: '__________ chien', answer: 'Mon', choices: MON_MA_MES },
   { cat: 'Possessive Adjectives', question: '__________ deux chats', answer: 'Leurs', choices: LEUR_LEURS },
-  { cat: 'Possessive Adjectives', question: '__________ invité', answer: 'Nos', choices: NOTRE_NOS },
+  { cat: 'Possessive Adjectives', question: '__________ invité', answer: 'Notre', choices: NOTRE_NOS },
   { cat: 'Possessive Adjectives', question: '__________ chemise', answer: 'Sa', choices: SON_SA_SES },
 
   // ── Section 15 — Adjective Agreement (with English hints) ───────

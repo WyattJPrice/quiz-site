@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { Question } from '@/data/types';
 import { shuffle, normalize, isFuzzyMatch } from '@/lib/quiz';
 import { generateChoices, getCorrectAnswer } from '@/lib/learn-algorithm';
@@ -28,10 +28,38 @@ export default function LearnEngine({ questions, slug }: Props) {
   const [showReveal, setShowReveal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function createFreshSession(): LearnSessionState {
+  // Filter sidebar
+  const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const allCats = useMemo(
+    () => Array.from(new Set(questions.map((q) => q.cat))),
+    [questions]
+  );
+  const catCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    questions.forEach((q) => { m[q.cat] = (m[q.cat] ?? 0) + 1; });
+    return m;
+  }, [questions]);
+  const filteredCount = useMemo(
+    () => questions.filter((q) => selectedCats.has(q.cat)).length,
+    [questions, selectedCats]
+  );
+
+  // True on the first selectedCats effect run so we can restore saved progress
+  const isInitialMount = useRef(true);
+
+  function filteredIndices(cats: Set<string>): number[] {
+    return questions
+      .map((q, i) => ({ q, i }))
+      .filter(({ q }) => cats.has(q.cat))
+      .map(({ i }) => i);
+  }
+
+  function makeFreshSession(cats: Set<string>): LearnSessionState {
     return {
       slug,
-      remaining: shuffle(Array.from({ length: questions.length }, (_, i) => i)),
+      remaining: shuffle(filteredIndices(cats)),
       wrongPile: [],
       currentIdx: 0,
       round: 1,
@@ -40,19 +68,40 @@ export default function LearnEngine({ questions, slug }: Props) {
     };
   }
 
+  // Initial mount — populate selectedCats (triggers session effect below)
   useEffect(() => {
-    const existing = loadProgress(slug);
-    const isValid =
-      existing &&
-      Array.isArray(existing.remaining) &&
-      Array.isArray(existing.wrongPile) &&
-      existing.remaining.length + existing.wrongPile.length <= questions.length;
-    const state = isValid ? existing : createFreshSession();
+    setSelectedCats(new Set(questions.map((q) => q.cat)));
+    setMounted(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build/rebuild session when selected categories change
+  useEffect(() => {
+    if (selectedCats.size === 0) {
+      setSession(null);
+      setComplete(false);
+      return;
+    }
+
+    let state: LearnSessionState;
+
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      const existing = loadProgress(slug);
+      const isValid =
+        existing &&
+        Array.isArray(existing.remaining) &&
+        Array.isArray(existing.wrongPile) &&
+        existing.remaining.length + existing.wrongPile.length <= questions.length;
+      state = isValid ? existing! : makeFreshSession(selectedCats);
+    } else {
+      state = makeFreshSession(selectedCats);
+    }
+
     setSession(state);
     saveProgress(state);
     loadQuestion(state);
-    setMounted(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    setComplete(false);
+  }, [selectedCats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (pendingAdvance) {
@@ -188,35 +237,136 @@ export default function LearnEngine({ questions, slug }: Props) {
 
   function handleReset() {
     resetProgress(slug);
-    const fresh = createFreshSession();
+    const fresh = makeFreshSession(selectedCats);
     setSession(fresh);
     saveProgress(fresh);
     loadQuestion(fresh);
     setComplete(false);
   }
 
-  if (!mounted || !session) return null;
+  function toggleCat(cat: string) {
+    setSelectedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
+  if (!mounted) return null;
+
+  // ── Sidebar ──────────────────────────────────────────────────────
+  const sidebar = (
+    <>
+      {sidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+      )}
+      <div className={`sidebar${sidebarOpen ? ' open' : ''}`}>
+        <div className="sidebar-header">
+          <span className="sidebar-title">Categories</span>
+          <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>✕</button>
+        </div>
+        <div className="sidebar-actions">
+          <button
+            className="sidebar-action-btn"
+            onClick={() => setSelectedCats(new Set(allCats))}
+          >
+            All
+          </button>
+          <button
+            className="sidebar-action-btn"
+            onClick={() => setSelectedCats(new Set())}
+          >
+            None
+          </button>
+        </div>
+        <div className="sidebar-cats">
+          {allCats.map((cat) => (
+            <div
+              key={cat}
+              className={`sidebar-cat-item${selectedCats.has(cat) ? ' checked' : ''}`}
+              onClick={() => toggleCat(cat)}
+            >
+              <div className="sidebar-cat-check">
+                {selectedCats.has(cat) && <span className="sidebar-cat-check-icon">✓</span>}
+              </div>
+              <span className="sidebar-cat-name">{cat}</span>
+              <span className="sidebar-cat-count">{catCounts[cat]}</span>
+            </div>
+          ))}
+        </div>
+        <div className="sidebar-footer">
+          <span className="sidebar-q-count">
+            <strong>{filteredCount}</strong> / {questions.length} questions active
+          </span>
+        </div>
+      </div>
+    </>
+  );
+
+  // ── Filter bar ───────────────────────────────────────────────────
+  const filterBar = (
+    <div className="filter-bar">
+      <button className="filter-toggle-btn" onClick={() => setSidebarOpen(true)}>
+        <span className="filter-toggle-icon">⊞</span>
+        <span>Categories</span>
+        {selectedCats.size < allCats.length && allCats.length > 0 && (
+          <span className="filter-chip">{selectedCats.size} / {allCats.length}</span>
+        )}
+      </button>
+    </div>
+  );
+
+  // No categories selected
+  if (!session || selectedCats.size === 0) {
+    return (
+      <>
+        {sidebar}
+        {filterBar}
+        <div className="filter-empty">
+          <p>No categories selected.</p>
+          <button
+            className="btn btn-primary"
+            style={{ marginTop: 16 }}
+            onClick={() => setSelectedCats(new Set(allCats))}
+          >
+            Select All
+          </button>
+        </div>
+      </>
+    );
+  }
 
   if (complete) {
     return (
-      <div className="complete show">
-        <div className="complete-icon">&#10003;</div>
-        <h2>All questions correct!</h2>
-        <p>Finished in {session.round} round{session.round > 1 ? 's' : ''} with {session.totalCorrect} correct and {session.totalWrong} wrong answers total.</p>
-        <div className="final-stats">
-          <div className="stat-big green">
-            <span className="num">{questions.length}</span>
-            <span className="lbl">Questions</span>
+      <>
+        {sidebar}
+        <div className="complete show">
+          <div className="complete-icon">&#10003;</div>
+          <h2>All questions correct!</h2>
+          <p>Finished in {session.round} round{session.round > 1 ? 's' : ''} with {session.totalCorrect} correct and {session.totalWrong} wrong answers total.</p>
+          <div className="final-stats">
+            <div className="stat-big green">
+              <span className="num">{filteredCount}</span>
+              <span className="lbl">Questions</span>
+            </div>
+            <div className="stat-big">
+              <span className="num" style={{ color: 'var(--accent)' }}>{session.round}</span>
+              <span className="lbl">Rounds</span>
+            </div>
           </div>
-          <div className="stat-big">
-            <span className="num" style={{ color: 'var(--accent)' }}>{session.round}</span>
-            <span className="lbl">Rounds</span>
-          </div>
+          <button className="btn btn-restart" onClick={handleReset}>
+            Study Again
+          </button>
+          <button
+            className="btn btn-skip"
+            style={{ marginTop: 12, display: 'block', width: '100%' }}
+            onClick={() => setSidebarOpen(true)}
+          >
+            Change Categories
+          </button>
         </div>
-        <button className="btn btn-restart" onClick={handleReset}>
-          Study Again
-        </button>
-      </div>
+      </>
     );
   }
 
@@ -224,10 +374,14 @@ export default function LearnEngine({ questions, slug }: Props) {
   if (qIdx === undefined) return null;
   const q = questions[qIdx];
   const isChoice = !!q.choices;
-  const progressPct = ((session.currentIdx) / session.remaining.length) * 100;
+  const progressPct = (session.currentIdx / session.remaining.length) * 100;
 
   return (
     <>
+      {sidebar}
+
+      {filterBar}
+
       <div className="learn-topbar">
         <div className="learn-progress-bar">
           <div className="learn-progress-fill" style={{ width: `${progressPct}%` }} />
