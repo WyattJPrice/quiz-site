@@ -10,6 +10,8 @@ import { endocrineDiseaseQuestions } from './endocrine-disease';
 import { eggEmbryoQuestions } from './egg-embryo';
 import { finalReviewQuestions } from './final-review';
 import { englishIIQuestions } from './english-ii';
+import { frenchFinalQuestions } from './french-final';
+import { salvationHistoryQuestions } from './salvation-history';
 
 export const quizzes: QuizMeta[] = [
   // ── Biology ────────────────────────────────────────────────────
@@ -101,6 +103,24 @@ export const quizzes: QuizMeta[] = [
     description: 'Composition, Persepolis, Grammar, Punctuation, and Hamlet',
     questions: englishIIQuestions,
     section: 'English II',
+  },
+  // ── Salvation History ───────────────────────────────────────────
+  {
+    slug: 'salvation-history',
+    title: 'Salvation History Final',
+    icon: '✝️',
+    description: 'Creation to Christ — 115 questions covering the major covenants, figures, and events of Salvation History',
+    questions: salvationHistoryQuestions,
+    section: 'Salvation History',
+  },
+  // ── French ──────────────────────────────────────────────────────
+  {
+    slug: 'french-final',
+    title: 'French I Final',
+    icon: '🇫🇷',
+    description: 'Numbers, days, months, articles, conjugation, adjectives, possessives, negation, and more',
+    questions: frenchFinalQuestions,
+    section: 'French',
   },
 ];
 
