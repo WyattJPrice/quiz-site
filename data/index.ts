@@ -10,6 +10,7 @@ import { endocrineDiseaseQuestions } from './endocrine-disease';
 import { eggEmbryoQuestions } from './egg-embryo';
 import { finalReviewQuestions } from './final-review';
 import { englishIIQuestions } from './english-ii';
+import { crucibleAct2Questions } from './crucible-act-2';
 import { frenchFinalQuestions } from './french-final';
 import { salvationHistoryQuestions } from './salvation-history';
 
@@ -102,6 +103,14 @@ export const quizzes: QuizMeta[] = [
     icon: '📖',
     description: 'Composition, Persepolis, Grammar, Punctuation, and Hamlet',
     questions: englishIIQuestions,
+    section: 'English II',
+  },
+  {
+    slug: 'crucible-act-2',
+    title: 'The Crucible — Act 2',
+    icon: '⚖️',
+    description: '50 multiple choice questions on characters, the court, and key quotes from Act 2',
+    questions: crucibleAct2Questions,
     section: 'English II',
   },
   // ── Salvation History ───────────────────────────────────────────
