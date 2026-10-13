@@ -13,6 +13,7 @@ import { englishIIQuestions } from './english-ii';
 import { crucibleAct2Questions } from './crucible-act-2';
 import { frenchFinalQuestions } from './french-final';
 import { salvationHistoryQuestions } from './salvation-history';
+import { usHistoryUnit3Questions } from './us-history-unit-3';
 
 export const quizzes: QuizMeta[] = [
   // ── Biology ────────────────────────────────────────────────────
@@ -130,6 +131,15 @@ export const quizzes: QuizMeta[] = [
     description: 'Numbers, days, months, articles, conjugation, adjectives, possessives, negation, and more',
     questions: frenchFinalQuestions,
     section: 'French',
+  },
+  // ── US History ───────────────────────────────────────────────────
+  {
+    slug: 'us-history-unit-3',
+    title: 'US History Unit 3: The 13 Colonies',
+    icon: '🇺🇸',
+    description: 'Practice test on the colonies — diversity, education, Jamestown, New England, colonial economies, and more',
+    questions: usHistoryUnit3Questions,
+    section: 'US History',
   },
 ];
 
