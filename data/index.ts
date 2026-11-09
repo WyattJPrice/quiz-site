@@ -14,6 +14,8 @@ import { crucibleAct2Questions } from './crucible-act-2';
 import { frenchFinalQuestions } from './french-final';
 import { salvationHistoryQuestions } from './salvation-history';
 import { usHistoryUnit3Questions } from './us-history-unit-3';
+import { redBadgeCh1to6Questions } from './red-badge-ch1-6';
+import { chemistryPeriodicTableQuestions } from './chemistry-periodic-table';
 
 export const quizzes: QuizMeta[] = [
   // ── Biology ────────────────────────────────────────────────────
@@ -114,6 +116,14 @@ export const quizzes: QuizMeta[] = [
     questions: crucibleAct2Questions,
     section: 'English II',
   },
+  {
+    slug: 'red-badge-ch1-6',
+    title: 'The Red Badge of Courage — Ch. 1-6',
+    icon: '🎖️',
+    description: '75 multiple choice questions on Henry Fleming\u2019s first battles, his fears, and his flight',
+    questions: redBadgeCh1to6Questions,
+    section: 'English II',
+  },
   // ── Salvation History ───────────────────────────────────────────
   {
     slug: 'salvation-history',
@@ -140,6 +150,15 @@ export const quizzes: QuizMeta[] = [
     description: 'Practice test on the colonies — diversity, education, Jamestown, New England, colonial economies, and more',
     questions: usHistoryUnit3Questions,
     section: 'US History',
+  },
+  // ── Chemistry ───────────────────────────────────────────────────
+  {
+    slug: 'chemistry-periodic-table',
+    title: 'Chemistry: Periodic Table Vocab',
+    icon: '⚗️',
+    description: '18 fill-in-the-blank terms — periodic law, groups of elements, ions, and atomic trends',
+    questions: chemistryPeriodicTableQuestions,
+    section: 'Chemistry',
   },
 ];
 
