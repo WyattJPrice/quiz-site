@@ -1,12 +1,11 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { quizzes, getQuiz } from '@/data';
+import ThemeToggle from '@/components/ThemeToggle';
 import LearnEngine from '@/components/LearnEngine';
+import { getStudySet } from '@/db/library';
 
-export async function generateStaticParams() {
-  return quizzes.map((q) => ({ slug: q.slug }));
-}
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -14,8 +13,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const quiz = getQuiz(slug);
-  return { title: quiz ? `Learn · ${quiz.title} — Study Site` : 'Study Site' };
+  const set = await getStudySet(slug);
+  return { title: set ? `Learn · ${set.title} — Study Library` : 'Study Library' };
 }
 
 export default async function LearnPage({
@@ -24,21 +23,24 @@ export default async function LearnPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const quiz = getQuiz(slug);
-  if (!quiz) notFound();
+  const set = await getStudySet(slug);
+  if (!set) notFound();
 
   return (
-    <div className="container">
-      <Link className="back-link" href="/">
-        ← All Quizzes
-      </Link>
+    <>
+      <ThemeToggle />
+      <div className="container">
+        <Link className="back-link" href="/">
+          ← Study library
+        </Link>
 
-      <header className="header">
-        <span className="subtitle">Learn Mode</span>
-        <div className="title">{quiz.title}</div>
-      </header>
+        <header className="header">
+          <span className="subtitle">{set.section} · Learn Mode</span>
+          <div className="title">{set.title}</div>
+        </header>
 
-      <LearnEngine questions={quiz.questions} slug={quiz.slug} />
-    </div>
+        <LearnEngine questions={set.questions} slug={set.slug} />
+      </div>
+    </>
   );
 }

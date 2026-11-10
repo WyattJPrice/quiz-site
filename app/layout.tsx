@@ -1,23 +1,33 @@
 import type { Metadata } from 'next';
-import { Syne, DM_Mono } from 'next/font/google';
-import ThemeToggle from '@/components/ThemeToggle';
+import { Sora, Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import './library.css';
 
-const syne = Syne({
+const sora = Sora({
   subsets: ['latin'],
-  weight: ['400', '600', '700', '800'],
-  variable: '--font-syne',
+  weight: ['400', '600', '700'],
+  variable: '--font-sora',
+  display: 'swap',
 });
 
-const dmMono = DM_Mono({
+const geist = Geist({
   subsets: ['latin'],
-  weight: ['400', '500'],
-  variable: '--font-mono',
+  weight: ['400', '500', '600'],
+  variable: '--font-geist',
+  display: 'swap',
+});
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-geist-mono',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
-  title: 'Study Site',
-  description: 'Interactive study quizzes — multiple choice, fill-in-the-blank, and learn mode',
+  title: 'Study Library — Wyatt Price',
+  description:
+    'A study library for organizing sets by subject, studying, and taking practice tests.',
 };
 
 const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();`;
@@ -28,8 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={`${syne.variable} ${dmMono.variable}`}>
-        <ThemeToggle />
+      <body className={`${sora.variable} ${geist.variable} ${geistMono.variable}`}>
         {children}
       </body>
     </html>
