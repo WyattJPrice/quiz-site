@@ -23,5 +23,8 @@ dist/
 *.pem
 npm-debug.log*
 
+# AI agent config
+AGENTS.md
+
 # IDE
 /.vscode

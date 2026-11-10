@@ -166,7 +166,7 @@ export const quizzes: QuizMeta[] = [
     slug: 'religion-ch4',
     title: 'Religion Chapter 4 Vocab',
     icon: '⛪',
-    description: '15 fill-in-the-blank terms — councils, creeds, heresy, and early Church theology',
+    description: '15 multiple choice terms — councils, creeds, heresy, and early Church theology',
     questions: religionCh4Questions,
     section: 'Religion Chapter 4',
   },
