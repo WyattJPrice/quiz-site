@@ -1,25 +1,28 @@
 import type { Metadata } from 'next';
-import { Sora, Geist, Geist_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import './library.css';
 
-const sora = Sora({
-  subsets: ['latin'],
-  weight: ['400', '600', '700'],
+const sora = localFont({
+  src: './fonts/sora-latin.woff2',
+  weight: '400 700',
+  style: 'normal',
   variable: '--font-sora',
   display: 'swap',
 });
 
-const geist = Geist({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const geist = localFont({
+  src: './fonts/geist-latin.woff2',
+  weight: '400 600',
+  style: 'normal',
   variable: '--font-geist',
   display: 'swap',
 });
 
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const geistMono = localFont({
+  src: './fonts/geist-mono-latin.woff2',
+  weight: '400 600',
+  style: 'normal',
   variable: '--font-geist-mono',
   display: 'swap',
 });
