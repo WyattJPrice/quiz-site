@@ -16,6 +16,7 @@ import { salvationHistoryQuestions } from './salvation-history';
 import { usHistoryUnit3Questions } from './us-history-unit-3';
 import { redBadgeCh1to6Questions } from './red-badge-ch1-6';
 import { chemistryPeriodicTableQuestions } from './chemistry-periodic-table';
+import { religionCh4Questions } from './religion-ch4';
 
 export const quizzes: QuizMeta[] = [
   // ── Biology ────────────────────────────────────────────────────
@@ -159,6 +160,15 @@ export const quizzes: QuizMeta[] = [
     description: '18 fill-in-the-blank terms — periodic law, groups of elements, ions, and atomic trends',
     questions: chemistryPeriodicTableQuestions,
     section: 'Chemistry',
+  },
+  // ── Religion ────────────────────────────────────────────────────
+  {
+    slug: 'religion-ch4',
+    title: 'Religion Chapter 4 Vocab',
+    icon: '⛪',
+    description: '15 fill-in-the-blank terms — councils, creeds, heresy, and early Church theology',
+    questions: religionCh4Questions,
+    section: 'Religion Chapter 4',
   },
 ];
 
