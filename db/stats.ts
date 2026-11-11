@@ -27,37 +27,44 @@ export interface LeaderboardData {
 export const getLeaderboard = cache(async (viewerId?: string): Promise<LeaderboardData> => {
   if (!db) return { entries: [], me: null, players: 0 };
 
-  const rows = await db
-    .select({
-      userId: users.id,
-      displayName: users.displayName,
-      name: users.name,
-      image: users.image,
-      correct: sql<number>`coalesce(sum(${quizResults.correct}), 0)::int`,
-    })
-    .from(users)
-    .leftJoin(quizResults, eq(quizResults.userId, users.id))
-    .groupBy(users.id, users.displayName, users.name, users.image);
+  try {
+    const rows = await db
+      .select({
+        userId: users.id,
+        displayName: users.displayName,
+        name: users.name,
+        image: users.image,
+        correct: sql<number>`coalesce(sum(${quizResults.correct}), 0)::int`,
+      })
+      .from(users)
+      .leftJoin(quizResults, eq(quizResults.userId, users.id))
+      .groupBy(users.id, users.displayName, users.name, users.image);
 
-  const ranked = rows
-    .map((row) => ({
-      userId: row.userId,
-      name: row.displayName?.trim() || row.name?.trim() || 'Student',
-      image: row.image,
-      correct: Number(row.correct) || 0,
-    }))
-    .sort((a, b) => b.correct - a.correct || a.userId.localeCompare(b.userId))
-    .map((row, index) => ({
-      ...row,
-      rank: index + 1,
-      isMe: Boolean(viewerId) && row.userId === viewerId,
-    }));
+    const ranked = rows
+      .map((row) => ({
+        userId: row.userId,
+        name: row.displayName?.trim() || row.name?.trim() || 'Student',
+        image: row.image,
+        correct: Number(row.correct) || 0,
+      }))
+      .sort((a, b) => b.correct - a.correct || a.userId.localeCompare(b.userId))
+      .map((row, index) => ({
+        ...row,
+        rank: index + 1,
+        isMe: Boolean(viewerId) && row.userId === viewerId,
+      }));
 
-  return {
-    entries: ranked.slice(0, 10),
-    me: viewerId ? ranked.find((row) => row.userId === viewerId) ?? null : null,
-    players: ranked.length,
-  };
+    return {
+      entries: ranked.slice(0, 10),
+      me: viewerId ? ranked.find((row) => row.userId === viewerId) ?? null : null,
+      players: ranked.length,
+    };
+  } catch (error) {
+    // The auth tables are created by db/migrations/0001_auth_and_tracking.sql.
+    // Until that migration runs the board is empty instead of failing the page.
+    console.error('[stats] leaderboard query failed', error);
+    return { entries: [], me: null, players: 0 };
+  }
 });
 
 export interface SubjectStat {

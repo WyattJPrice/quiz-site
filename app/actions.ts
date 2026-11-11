@@ -1,6 +1,7 @@
 'use server';
 
-import { signIn, signOut } from '@/auth';
+import { redirect } from 'next/navigation';
+import { authConfigured, signIn, signOut } from '@/auth';
 
 function safeRedirect(value: FormDataEntryValue | null): string {
   const target = typeof value === 'string' ? value : '';
@@ -9,6 +10,10 @@ function safeRedirect(value: FormDataEntryValue | null): string {
 }
 
 export async function signInWithGoogle(formData: FormData): Promise<void> {
+  if (!authConfigured) {
+    redirect('/signin?error=unconfigured');
+  }
+
   await signIn('google', { redirectTo: safeRedirect(formData.get('redirectTo')) });
 }
 

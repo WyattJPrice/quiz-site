@@ -860,6 +860,23 @@
   transform: translateY(-1px);
 }
 
+.signin-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.signin-notice {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--wrong-border);
+  border-radius: 8px;
+  background: var(--wrong-soft);
+  color: var(--wrong);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 .signin-back {
   display: block;
   margin-top: 16px;

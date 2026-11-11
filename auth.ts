@@ -9,8 +9,9 @@ import { accounts, sessions, users, verificationTokens } from '@/db/schema';
  * sessions, and an editable `display_name`. The adapter tables live in the
  * study site's Neon database instead of Supabase, so there is one database.
  *
- * Without DATABASE_URL (a fresh clone, or a build machine with no env) the app
- * still renders signed out and falls back to JWT sessions so nothing crashes.
+ * A deployment without AUTH_SECRET or Google credentials renders signed out
+ * instead of throwing MissingSecret on every page; sign-in is disabled until
+ * the environment is configured.
  */
 const adapter = db
   ? DrizzleAdapter(db, {
@@ -21,9 +22,19 @@ const adapter = db
     })
   : undefined;
 
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+const googleId = process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID;
+const googleSecret = process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET;
+
+export const authConfigured = Boolean(authSecret && googleId && googleSecret);
+
+const providers =
+  googleId && googleSecret ? [Google({ clientId: googleId, clientSecret: googleSecret })] : [];
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: authSecret,
   adapter,
-  providers: [Google],
+  providers,
   session: { strategy: adapter ? 'database' : 'jwt' },
   pages: { signIn: '/signin' },
   trustHost: true,

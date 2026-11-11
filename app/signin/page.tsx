@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { authConfigured } from '@/auth';
 import { signInWithGoogle } from '@/app/actions';
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string; redirectTo?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; redirectTo?: string; error?: string }>;
 }) {
   const params = await searchParams;
   const requested = params.callbackUrl ?? params.redirectTo ?? '/';
@@ -27,9 +28,16 @@ export default async function SignInPage({
           sign in.
         </p>
 
+        {!authConfigured ? (
+          <p className="signin-notice" role="status">
+            Google sign-in is not configured on this deployment yet. The library, stats and practice
+            still work without an account.
+          </p>
+        ) : null}
+
         <form action={signInWithGoogle}>
           <input type="hidden" name="redirectTo" value={redirectTo} />
-          <button type="submit" className="signin-button">
+          <button type="submit" className="signin-button" disabled={!authConfigured}>
             <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
               <path
                 fill="#EA4335"

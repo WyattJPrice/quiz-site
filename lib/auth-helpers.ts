@@ -1,4 +1,4 @@
-import { auth } from '@/auth';
+import { auth, authConfigured } from '@/auth';
 import { db } from '@/db';
 
 export interface SessionUser {
@@ -9,19 +9,29 @@ export interface SessionUser {
   email: string | null;
 }
 
-/** The signed-in user, shaped for the shell, or null when signed out. */
+/**
+ * The signed-in user, shaped for the shell, or null when signed out. A
+ * deployment without auth secrets renders signed out rather than erroring.
+ */
 export async function currentUser(): Promise<SessionUser | null> {
-  const session = await auth();
-  const user = session?.user;
-  if (!user?.id) return null;
+  if (!authConfigured) return null;
 
-  return {
-    id: user.id,
-    displayName: user.displayName ?? null,
-    name: user.name ?? null,
-    image: user.image ?? null,
-    email: user.email ?? null,
-  };
+  try {
+    const session = await auth();
+    const user = session?.user;
+    if (!user?.id) return null;
+
+    return {
+      id: user.id,
+      displayName: user.displayName ?? null,
+      name: user.name ?? null,
+      image: user.image ?? null,
+      email: user.email ?? null,
+    };
+  } catch (error) {
+    console.error('[auth] session lookup failed', error);
+    return null;
+  }
 }
 
 /** True when the request comes from this origin; mutations refuse otherwise. */
