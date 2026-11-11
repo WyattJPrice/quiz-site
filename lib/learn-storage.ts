@@ -14,7 +14,9 @@ export function loadProgress(slug: string): LearnSessionState | null {
 
 export function saveProgress(state: LearnSessionState): void {
   try {
-    localStorage.setItem(KEY_PREFIX + state.slug, JSON.stringify(state));
+    // Stamp every write so the server copy can be compared with this one.
+    const stamped: LearnSessionState = { ...state, updatedAt: Date.now() };
+    localStorage.setItem(KEY_PREFIX + stamped.slug, JSON.stringify(stamped));
   } catch {
     // localStorage full or unavailable
   }

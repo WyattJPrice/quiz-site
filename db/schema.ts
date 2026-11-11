@@ -1,14 +1,19 @@
+import { sql } from 'drizzle-orm';
 import {
+  bigserial,
+  check,
   date,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import type { LearnSessionState } from '@/lib/learn-types';
 
 /**
  * Subjects are the top-level grouping used by the library filters and sections.
@@ -89,6 +94,125 @@ export const questions = pgTable(
   ],
 );
 
+/**
+ * Auth.js (NextAuth v5) tables. Classlink runs the same library with Google and
+ * database sessions; the adapter tables live in this database instead of
+ * Supabase, so there is still exactly one database for the study site.
+ *
+ * `display_name` is the editable username shown in the sidebar and on the
+ * leaderboard; `name` stays the Google profile name.
+ */
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name'),
+    email: text('email').unique(),
+    emailVerified: timestamp('email_verified', { withTimezone: true }),
+    image: text('image'),
+    displayName: text('display_name'),
+  },
+  (table) => [uniqueIndex('users_display_name_lower_key').on(sql`lower(${table.displayName})`)],
+);
+
+export const accounts = pgTable(
+  'accounts',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    provider: text('provider').notNull(),
+    providerAccountId: text('provider_account_id').notNull(),
+    refresh_token: text('refresh_token'),
+    access_token: text('access_token'),
+    expires_at: integer('expires_at'),
+    token_type: text('token_type'),
+    scope: text('scope'),
+    id_token: text('id_token'),
+    session_state: text('session_state'),
+  },
+  (table) => [primaryKey({ columns: [table.provider, table.providerAccountId] })],
+);
+
+export const sessions = pgTable(
+  'sessions',
+  {
+    sessionToken: text('session_token').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expires: timestamp('expires', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('sessions_user_id_idx').on(table.userId)],
+);
+
+export const verificationTokens = pgTable(
+  'verification_token',
+  {
+    identifier: text('identifier').notNull(),
+    token: text('token').notNull(),
+    expires: timestamp('expires', { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.identifier, table.token] })],
+);
+
+/** Where a signed-in student stopped in a set, so another device can resume. */
+export const quizProgress = pgTable(
+  'quiz_progress',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    studySetId: uuid('study_set_id')
+      .notNull()
+      .references(() => studySets.id, { onDelete: 'cascade' }),
+    state: jsonb('state').$type<LearnSessionState>().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.studySetId] })],
+);
+
+/** One row per finished set, the only thing the leaderboard and stats read. */
+export const quizResults = pgTable(
+  'quiz_results',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    studySetId: uuid('study_set_id')
+      .notNull()
+      .references(() => studySets.id, { onDelete: 'cascade' }),
+    mode: text('mode').notNull(),
+    answered: integer('answered').notNull(),
+    correct: integer('correct').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('quiz_results_user_created_idx').on(table.userId, table.createdAt),
+    index('quiz_results_study_set_idx').on(table.studySetId),
+    check('quiz_results_mode_check', sql`${table.mode} in ('learn', 'test')`),
+    check('quiz_results_counts_check', sql`${table.correct} >= 0 and ${table.correct} <= ${table.answered}`),
+  ],
+);
+
+/** Claims a guest device against an account so the import only ever runs once. */
+export const guestMerges = pgTable(
+  'guest_merges',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    deviceId: text('device_id').notNull(),
+    mergedAt: timestamp('merged_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.deviceId] })],
+);
+
 export type SubjectRow = typeof subjects.$inferSelect;
 export type StudySetRow = typeof studySets.$inferSelect;
 export type QuestionRow = typeof questions.$inferSelect;
+export type UserRow = typeof users.$inferSelect;
+export type QuizProgressRow = typeof quizProgress.$inferSelect;
+export type QuizResultRow = typeof quizResults.$inferSelect;

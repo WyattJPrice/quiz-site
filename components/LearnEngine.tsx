@@ -6,13 +6,24 @@ import { shuffle, normalize, isFuzzyMatch } from '@/lib/quiz';
 import { generateChoices, getCorrectAnswer } from '@/lib/learn-algorithm';
 import { loadProgress, saveProgress, resetProgress } from '@/lib/learn-storage';
 import type { LearnSessionState } from '@/lib/learn-types';
+import { recordFinishedSet, saveServerProgress } from '@/lib/study-tracker';
+import SaveStatsToast from './SaveStatsToast';
 
 interface Props {
   questions: Question[];
   slug: string;
+  signedIn?: boolean;
+  savedProgress?: LearnSessionState | null;
+  savedAt?: string | null;
 }
 
-export default function LearnEngine({ questions, slug }: Props) {
+export default function LearnEngine({
+  questions,
+  slug,
+  signedIn = false,
+  savedProgress = null,
+  savedAt = null,
+}: Props) {
   const [mounted, setMounted] = useState(false);
   const [session, setSession] = useState<LearnSessionState | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
@@ -21,6 +32,10 @@ export default function LearnEngine({ questions, slug }: Props) {
   const [cardClass, setCardClass] = useState('');
   const [complete, setComplete] = useState(false);
   const [pendingAdvance, setPendingAdvance] = useState(false);
+  const [saveToast, setSaveToast] = useState<number | null>(null);
+  const [streak, setStreak] = useState(0);
+  const [streakBurst, setStreakBurst] = useState(false);
+  const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Fill-in-blank state
   const [inputValue, setInputValue] = useState('');
@@ -68,6 +83,31 @@ export default function LearnEngine({ questions, slug }: Props) {
     };
   }
 
+  // localStorage always; the account when signed in (debounced while answering).
+  function persist(state: LearnSessionState) {
+    saveProgress(state);
+    clearTimeout(serverSaveTimer.current);
+    if (!signedIn) return;
+
+    serverSaveTimer.current = setTimeout(() => {
+      void saveServerProgress(slug, { ...state, updatedAt: Date.now() });
+    }, 800);
+  }
+
+  async function finishSession(finished: LearnSessionState) {
+    const answered = finished.totalCorrect + finished.totalWrong;
+    if (answered === 0) return;
+
+    await recordFinishedSet(signedIn, {
+      slug,
+      mode: 'learn',
+      answered,
+      correct: finished.totalCorrect,
+    });
+
+    if (!signedIn) setSaveToast(answered);
+  }
+
   // Initial mount — populate selectedCats (triggers session effect below)
   useEffect(() => {
     setSelectedCats(new Set(questions.map((q) => q.cat)));
@@ -87,18 +127,21 @@ export default function LearnEngine({ questions, slug }: Props) {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       const existing = loadProgress(slug);
+      const localTime = existing?.updatedAt ?? 0;
+      const serverTime = savedAt ? Date.parse(savedAt) : 0;
+      const preferred = savedProgress && serverTime > localTime ? savedProgress : existing;
       const isValid =
-        existing &&
-        Array.isArray(existing.remaining) &&
-        Array.isArray(existing.wrongPile) &&
-        existing.remaining.length + existing.wrongPile.length <= questions.length;
-      state = isValid ? existing! : makeFreshSession(selectedCats);
+        preferred &&
+        Array.isArray(preferred.remaining) &&
+        Array.isArray(preferred.wrongPile) &&
+        preferred.remaining.length + preferred.wrongPile.length <= questions.length;
+      state = isValid ? preferred! : makeFreshSession(selectedCats);
     } else {
       state = makeFreshSession(selectedCats);
     }
 
     setSession(state);
-    saveProgress(state);
+    persist(state);
     loadQuestion(state);
     setComplete(false);
   }, [selectedCats]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -109,6 +152,10 @@ export default function LearnEngine({ questions, slug }: Props) {
       advance();
     }
   }, [pendingAdvance]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return () => clearTimeout(serverSaveTimer.current);
+  }, []);
 
   function loadQuestion(state: LearnSessionState) {
     const qIdx = state.remaining[state.currentIdx];
@@ -136,8 +183,16 @@ export default function LearnEngine({ questions, slug }: Props) {
       updated.totalWrong++;
       updated.wrongPile = [...updated.wrongPile, qIdx];
     }
+
+    const nextStreak = isCorrect ? streak + 1 : 0;
+    setStreak(nextStreak);
+    if (isCorrect && nextStreak > 0 && nextStreak % 5 === 0) {
+      setStreakBurst(true);
+      setTimeout(() => setStreakBurst(false), 700);
+    }
+
     setSession(updated);
-    saveProgress(updated);
+    persist(updated);
   }
 
   function handleChoice(choice: string) {
@@ -214,6 +269,7 @@ export default function LearnEngine({ questions, slug }: Props) {
       if (session.wrongPile.length === 0) {
         setComplete(true);
         resetProgress(slug);
+        void finishSession(session);
         return;
       }
       const newSession: LearnSessionState = {
@@ -224,14 +280,14 @@ export default function LearnEngine({ questions, slug }: Props) {
         round: session.round + 1,
       };
       setSession(newSession);
-      saveProgress(newSession);
+      persist(newSession);
       loadQuestion(newSession);
       return;
     }
 
     const updated = { ...session, currentIdx: nextIdx };
     setSession(updated);
-    saveProgress(updated);
+    persist(updated);
     loadQuestion(updated);
   }
 
@@ -239,9 +295,11 @@ export default function LearnEngine({ questions, slug }: Props) {
     resetProgress(slug);
     const fresh = makeFreshSession(selectedCats);
     setSession(fresh);
-    saveProgress(fresh);
+    persist(fresh);
     loadQuestion(fresh);
     setComplete(false);
+    setSaveToast(null);
+    setStreak(0);
   }
 
   function toggleCat(cat: string) {
@@ -366,6 +424,9 @@ export default function LearnEngine({ questions, slug }: Props) {
             Change Categories
           </button>
         </div>
+        {saveToast !== null ? (
+          <SaveStatsToast answered={saveToast} onClose={() => setSaveToast(null)} />
+        ) : null}
       </>
     );
   }
@@ -390,10 +451,25 @@ export default function LearnEngine({ questions, slug }: Props) {
           <span className="learn-mastery-count">
             Round {session.round} {session.wrongPile.length > 0 && `· ${session.wrongPile.length} wrong`}
           </span>
-          <span className="q-counter">{session.currentIdx + 1}/{session.remaining.length}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {streak > 1 ? (
+              <span className={`streak-chip${streakBurst ? ' streak-pop' : ''}`}>
+                {streakBurst ? (
+                  <span className="confetti" aria-hidden="true">
+                    {Array.from({ length: 8 }).map((_, index) => (
+                      <span key={index} />
+                    ))}
+                  </span>
+                ) : null}
+                {streak} in a row
+              </span>
+            ) : null}
+            <span className="q-counter">{session.currentIdx + 1}/{session.remaining.length}</span>
+          </span>
         </div>
       </div>
 
+      <div key={`${session.round}-${session.currentIdx}`} className="question-enter">
       <div
         className={`card${cardClass ? ` ${cardClass}` : ''}`}
         onAnimationEnd={() =>
@@ -415,7 +491,8 @@ export default function LearnEngine({ questions, slug }: Props) {
                 return (
                   <button
                     key={`${choice}-${i}`}
-                    className={cls}
+                    className={`${cls} choice-enter`}
+                    style={{ animationDelay: `${i * 35}ms` }}
                     onClick={() => handleChoice(choice)}
                     disabled={answered}
                   >
@@ -475,6 +552,7 @@ export default function LearnEngine({ questions, slug }: Props) {
             </button>
           </div>
         )}
+      </div>
       </div>
     </>
   );

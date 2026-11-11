@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
+import GuestSync from '@/components/GuestSync';
 import QuizEngine from '@/components/QuizEngine';
 import { getStudySet } from '@/db/library';
+import { currentUser } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +28,11 @@ export default async function QuizPage({
   const set = await getStudySet(slug);
   if (!set) notFound();
 
+  const user = await currentUser();
+
   return (
     <>
+      <GuestSync signedIn={Boolean(user)} />
       <ThemeToggle />
       <div className="container">
         <Link className="back-link" href="/">
@@ -39,7 +44,7 @@ export default async function QuizPage({
           <div className="title">{set.title}</div>
         </header>
 
-        <QuizEngine questions={set.questions} />
+        <QuizEngine questions={set.questions} slug={set.slug} signedIn={Boolean(user)} />
       </div>
     </>
   );

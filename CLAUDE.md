@@ -4,21 +4,42 @@ A Next.js (TypeScript) fill-in-the-blank study app for biology. Students type an
 
 ## Stack
 
-- **Next.js 15** (App Router, static export)
+- **Next.js 15** (App Router, server-rendered — not a static export)
 - **TypeScript**
-- **Fonts**: Syne (headings), DM Mono (inputs/code)
-- No external UI library — custom CSS in `app/globals.css`
+- **Neon Postgres + Drizzle ORM** — `db/schema.ts`, `db/library.ts`, `db/stats.ts`, migrations in `db/migrations/`
+- **Auth.js / NextAuth v5** — Google only, database sessions, same shape as `WyattJPrice/classlink` (`auth.ts`)
+- **Fonts**: local Sora, Geist and Geist Mono via `next/font/local`
+- No external UI library — custom CSS in `app/globals.css`, `app/library.css`, `app/dashboard.css`
+
+Study sets are seeded into Postgres from `data/`; the app never invents test dates. Accounts live in the
+same database as the sets (no second database). Signed out, progress and finished-set stats stay in
+`localStorage` and are merged into the account once after sign-in (`POST /api/guest/merge`).
 
 ## Project structure
 
 ```
 app/
-  layout.tsx          — root layout, fonts, metadata
-  page.tsx            — home page (quiz listing grid)
-  quiz/[slug]/page.tsx — dynamic quiz page, renders QuizEngine
+  layout.tsx           — root layout, fonts, theme bootstrap, global CSS
+  page.tsx             — study library dashboard (set rows + leaderboard rail)
+  stats/page.tsx       — your stats (server rows when signed in, guest stats otherwise)
+  signin/page.tsx      — Google sign-in
+  learn/[slug]/page.tsx — learn mode
+  quiz/[slug]/page.tsx  — test mode
+  api/                 — auth, profile rename, progress, results, guest merge
+  dashboard.css        — dashboard, auth, stats and learn/test animation styles
+
+db/
+  schema.ts            — Drizzle tables (sets, questions, users, sessions, progress, results)
+  stats.ts             — leaderboard, user stats, progress and finished-set queries
+
+auth.ts                — NextAuth config (Google, database sessions)
 
 components/
-  QuizEngine.tsx      — all quiz logic + UI (fill-in-blank, multiple choice, scoring)
+  Sidebar.tsx          — navy rail: coming-soon +, Library/Stats, avatar menu (sign in / rename)
+  LibraryView.tsx      — dashboard rows, search, subject sections, leaderboard placement
+  StatsView.tsx        — signed-in stats or guest localStorage fallback
+  LearnEngine.tsx      — learn mode (rounds, wrong pile, server + local progress)
+  QuizEngine.tsx       — test mode (fill-in-blank, multiple choice, scoring)
 
 data/
   types.ts            — Question and QuizMeta interfaces
@@ -41,6 +62,7 @@ lib/
 
 1. Create `data/<slug>.ts` — export a `Question[]` array
 2. Import it in `data/index.ts` and push a `QuizMeta` entry to the `quizzes` array
+3. Run `npm run db:seed` to upsert the set into the existing Neon database (`npm run db:migrate` first for a fresh database)
 
 See `/create-quiz` for the full question format guide.
 

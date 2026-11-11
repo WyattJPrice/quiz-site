@@ -3,11 +3,21 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { Question } from '@/data/types';
 import { shuffle, normalize, isFuzzyMatch, getPermutations } from '@/lib/quiz';
+import { recordFinishedSet } from '@/lib/study-tracker';
+import SaveStatsToast from './SaveStatsToast';
 
 type BlankState = 'neutral' | 'correct' | 'wrong';
 type ChoiceResult = 'correct' | 'wrong' | undefined;
 
-export default function QuizEngine({ questions }: { questions: Question[] }) {
+export default function QuizEngine({
+  questions,
+  slug,
+  signedIn = false,
+}: {
+  questions: Question[];
+  slug: string;
+  signedIn?: boolean;
+}) {
   const [deck, setDeck] = useState<Question[]>(questions);
   const [idx, setIdx] = useState(0);
   const [scoreCorrect, setScoreCorrect] = useState(0);
@@ -33,6 +43,7 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
   // Toast
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const [saveToast, setSaveToast] = useState<number | null>(null);
 
   // Filter sidebar
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
@@ -40,6 +51,8 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Mirrors the score so the last answer is counted even before React re-renders.
+  const scoreRef = useRef({ correct: 0, wrong: 0 });
 
   const allCats = useMemo(
     () => Array.from(new Set(questions.map((q) => q.cat))),
@@ -76,8 +89,10 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
     clearTimeout(advanceTimer.current);
     setDeck(shuffle(filtered));
     setIdx(0);
+    scoreRef.current = { correct: 0, wrong: 0 };
     setScoreCorrect(0);
     setScoreWrong(0);
+    setSaveToast(null);
     setComplete(false);
     setAnswered(false);
     setFeedbackType(null);
@@ -133,6 +148,16 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
     nextQuestion: () => {},
   });
 
+  function bumpScore(kind: 'correct' | 'wrong') {
+    if (kind === 'correct') {
+      scoreRef.current.correct += 1;
+      setScoreCorrect(scoreRef.current.correct);
+    } else {
+      scoreRef.current.wrong += 1;
+      setScoreWrong(scoreRef.current.wrong);
+    }
+  }
+
   function showToast(msg: string) {
     clearTimeout(toastTimer.current);
     setToastMsg(msg);
@@ -142,11 +167,25 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
 
   function nextQuestion() {
     clearTimeout(advanceTimer.current);
+
     if (idx + 1 >= deck.length) {
       setComplete(true);
-    } else {
-      setIdx((i) => i + 1);
+
+      const answered = scoreRef.current.correct + scoreRef.current.wrong;
+      if (answered > 0) {
+        void recordFinishedSet(signedIn, {
+          slug,
+          mode: 'test',
+          answered,
+          correct: scoreRef.current.correct,
+        });
+        if (!signedIn) setSaveToast(answered);
+      }
+
+      return;
     }
+
+    setIdx((i) => i + 1);
   }
 
   function handleChoiceClick(choice: string) {
@@ -162,13 +201,13 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
     setAnswered(true);
 
     if (isCorrect) {
-      setScoreCorrect((s) => s + 1);
+      bumpScore('correct');
       setCardClass('correct-state pop');
       setFeedbackType('correct');
       setFeedbackText('Correct!');
       advanceTimer.current = setTimeout(nextQuestion, 900);
     } else {
-      setScoreWrong((s) => s + 1);
+      bumpScore('wrong');
       setCardClass('wrong-state shake');
       setFeedbackType('wrong');
       setFeedbackText('Not quite — the correct answer is highlighted.');
@@ -232,14 +271,14 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
     setAnswered(true);
 
     if (allCorrect) {
-      setScoreCorrect((s) => s + 1);
+      bumpScore('correct');
       setCardClass('correct-state pop');
       setFeedbackType('correct');
       setFeedbackText(fuzzyMsgs.length ? 'Close enough — marked correct!' : 'Correct!');
       if (fuzzyMsgs.length) showToast(fuzzyMsgs.join('<br>'));
       advanceTimer.current = setTimeout(nextQuestion, fuzzyMsgs.length ? 1400 : 900);
     } else {
-      setScoreWrong((s) => s + 1);
+      bumpScore('wrong');
       setCardClass('wrong-state shake');
       setFeedbackType('wrong');
       setFeedbackText('Not quite — check the correct answer above.');
@@ -275,10 +314,12 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
     const filtered = questions.filter((q) => selectedCats.has(q.cat));
     setDeck(shuffle(filtered.length > 0 ? filtered : questions));
     setIdx(0);
+    scoreRef.current = { correct: 0, wrong: 0 };
     setScoreCorrect(0);
     setScoreWrong(0);
     setComplete(false);
     setToastVisible(false);
+    setSaveToast(null);
   }
 
   const progress = deck.length > 0 ? (idx / deck.length) * 100 : 0;
@@ -405,6 +446,9 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
             Change Categories
           </button>
         </div>
+        {saveToast !== null ? (
+          <SaveStatsToast answered={saveToast} onClose={() => setSaveToast(null)} />
+        ) : null}
       </>
     );
   }
@@ -434,6 +478,7 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
         </div>
       </div>
 
+      <div key={`${idx}-${deck.length}`} className="question-enter">
       <div
         className={`card${cardClass ? ` ${cardClass}` : ''}`}
         onAnimationEnd={() =>
@@ -463,7 +508,8 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
               return (
                 <button
                   key={i}
-                  className={cls}
+                  className={`${cls} choice-enter`}
+                  style={{ animationDelay: `${i * 35}ms` }}
                   onClick={() => handleChoiceClick(choice)}
                   disabled={answered}
                 >
@@ -532,7 +578,7 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
       </div>
 
       {toastVisible && (
-        <div className="toast show">
+        <div className="toast show" role="status">
           <span className="toast-icon">💡</span>
           <div className="toast-body">
             <div className="toast-title">Close enough — marked correct</div>
@@ -552,6 +598,8 @@ export default function QuizEngine({ questions }: { questions: Question[] }) {
           </button>
         </div>
       )}
+
+      </div>
     </>
   );
 }

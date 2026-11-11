@@ -11,14 +11,18 @@
     "db:seed": "node --env-file=.env --import tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@auth/drizzle-adapter": "^1.11.3",
     "@neondatabase/serverless": "^1.2.0",
+    "bad-words": "^4.1.5",
     "drizzle-orm": "^0.45.4",
     "lucide-react": "^1.71.0",
     "next": "15.3.8",
+    "next-auth": "^5.0.0-beta.32",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/bad-words": "^3.0.3",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

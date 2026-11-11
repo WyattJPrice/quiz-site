@@ -45,6 +45,28 @@ The seed script keeps stable UUIDs, so re-running it updates existing rows rathe
 than creating duplicates. It never changes a set's `created_at` after the first
 import and never overwrites a scheduled or completed test date.
 
+## Accounts and stats
+
+Google sign-in uses the same shape as `WyattJPrice/classlink`: `next-auth` v5, Google as
+the only provider, database sessions and an editable `display_name`. The adapter tables
+(`users`, `accounts`, `sessions`, `verification_token`) live in the same Neon database as
+the study sets, not in a second database.
+
+Signed out, every answer is still recorded: finished sets go to `localStorage`
+(`study-guest-stats`), and learn progress keeps using `learn-progress-<slug>`. On the first
+sign-in, `POST /api/guest/merge` imports that work once per browser (the `guest_merges`
+primary key makes a replay a no-op) and the guest keys are cleared. Signed in, learn
+progress is stored per set in `quiz_progress`, so another device resumes where you stopped.
+
+`POST /api/results` records one finished set (`learn` or `test`, answered and correct
+counts). The leaderboard ranks accounts by **questions answered correctly**, the sum of
+`correct` across those rows; `/stats` breaks the same rows down by subject, day and set.
+
+Environment (see `.env.example`): `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`,
+`AUTH_GOOGLE_SECRET`. The Google OAuth client needs both callback URLs:
+`http://localhost:3000/api/auth/callback/google` and
+`https://study.wyattprice.dev/api/auth/callback/google`.
+
 ## Data model
 
 - `subjects` — name, slug, monochrome icon key, optional sort order

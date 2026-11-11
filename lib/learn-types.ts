@@ -6,4 +6,6 @@ export interface LearnSessionState {
   round: number;
   totalCorrect: number;
   totalWrong: number;
+  /** Milliseconds since epoch, used to pick the newest of local and server state. */
+  updatedAt?: number;
 }

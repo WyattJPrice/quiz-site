@@ -1,31 +1,26 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import {
-  ChevronDown,
-  Clock,
-  Library,
-  Search,
-  TrendingUp,
-} from 'lucide-react';
+import { useDeferredValue, useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
-import StudySetIcon from './StudySetIcon';
+import Sidebar, { type ShellUser } from './Sidebar';
+import Leaderboard from './Leaderboard';
+import GuestSync from './GuestSync';
 import type { LibraryData, StudySetSummary, SubjectSummary } from '@/lib/library-types';
-
-type View = 'library' | 'recent' | 'progress';
-
-const NAV: { id: View; label: string; icon: typeof Library }[] = [
-  { id: 'library', label: 'Library', icon: Library },
-  { id: 'recent', label: 'Recent', icon: Clock },
-  { id: 'progress', label: 'Progress', icon: TrendingUp },
-];
+import type { LeaderboardData } from '@/db/stats';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
 /**
- * Only upcoming, incomplete tests show a date. Completed tests and sets with no
- * scheduled test show nothing at all. A past date is never treated as complete.
+ * Only upcoming, incomplete tests show a date — the same rule the seed and the
+ * database use. A past date is never treated as complete.
  */
 function upcomingTestLabel(set: StudySetSummary): string | null {
   if (!set.testAt || set.testCompletedAt) return null;
@@ -38,70 +33,38 @@ function upcomingTestLabel(set: StudySetSummary): string | null {
   return `${MONTHS[month - 1]} ${day}, ${year}`;
 }
 
-function plural(count: number, singular: string, pluralForm = `${singular}s`) {
+function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
-function StudySetCard({ set }: { set: StudySetSummary }) {
+function SetRow({ set, lastStudied }: { set: StudySetSummary; lastStudied?: string }) {
   const testLabel = upcomingTestLabel(set);
+  const studiedLabel = lastStudied ? formatDate(lastStudied) : null;
+  const dateLine = testLabel ? `Test: ${testLabel}` : studiedLabel ? `Studied ${studiedLabel}` : null;
 
   return (
-    <article className="set-card">
-      <div className="set-card-head">
-        <span className="set-icon">
-          <StudySetIcon iconKey={set.iconKey} size={17} />
-        </span>
-        <h3 className="set-title">
+    <article className="set-row">
+      <div className="set-row-main">
+        <h3 className="set-row-title">
           <Link href={`/learn/${set.slug}`}>{set.title}</Link>
         </h3>
+        {set.description ? <p className="set-row-desc">{set.description}</p> : null}
       </div>
 
-      <p className="set-meta">{plural(set.questionCount, 'question')}</p>
+      <div className="set-row-meta">
+        <span className="set-row-count">{plural(set.questionCount, 'question')}</span>
+        {dateLine ? <span className="set-row-date">{dateLine}</span> : null}
+      </div>
 
-      {set.description ? <p className="set-desc">{set.description}</p> : null}
-
-      {testLabel ? (
-        <p className="set-test">
-          <span className="set-test-dot" aria-hidden="true" />
-          Test: {testLabel}
-        </p>
-      ) : null}
-
-      <div className="set-actions">
-        <Link className="btn-study" href={`/learn/${set.slug}`}>
+      <div className="set-row-actions">
+        <Link className="row-btn row-btn-primary" href={`/learn/${set.slug}`}>
           Study
         </Link>
-        <Link className="btn-test" href={`/quiz/${set.slug}`}>
-          Take Test
+        <Link className="row-btn" href={`/quiz/${set.slug}`}>
+          Test
         </Link>
       </div>
     </article>
-  );
-}
-
-function SetGrid({ sets }: { sets: StudySetSummary[] }) {
-  return (
-    <div className="set-grid">
-      {sets.map((set) => (
-        <StudySetCard key={set.id} set={set} />
-      ))}
-    </div>
-  );
-}
-
-function EmptyState({ onReset, query }: { onReset: () => void; query: string }) {
-  return (
-    <div className="empty-state">
-      <p className="empty-title">No study sets found</p>
-      <p className="empty-copy">
-        {query
-          ? `Nothing matches “${query.trim()}” with the current filters.`
-          : 'Nothing matches the current filters.'}
-      </p>
-      <button type="button" className="empty-reset" onClick={onReset}>
-        Clear search and filters
-      </button>
-    </div>
   );
 }
 
@@ -111,12 +74,14 @@ function SubjectSections({
   collapsed,
   onToggle,
   searching,
+  lastStudied,
 }: {
   subjects: SubjectSummary[];
   sets: StudySetSummary[];
   collapsed: Set<string>;
   onToggle: (slug: string) => void;
   searching: boolean;
+  lastStudied: Record<string, string>;
 }) {
   const grouped = useMemo(() => {
     const map = new Map<string, StudySetSummary[]>();
@@ -147,14 +112,11 @@ function SubjectSections({
                 aria-controls={panelId}
                 onClick={() => onToggle(subject.slug)}
               >
-                <span className="subject-icon">
-                  <StudySetIcon iconKey={subject.iconKey} size={16} />
-                </span>
                 <span className="subject-name">{subject.name}</span>
-                <span className="subject-count">{plural(subjectSets.length, 'set')}</span>
+                <span className="subject-count">{plural(subjectSets.length, 'study set')}</span>
                 <ChevronDown
-                  size={17}
-                  strokeWidth={1.7}
+                  size={18}
+                  strokeWidth={1.8}
                   aria-hidden="true"
                   className={`subject-chevron${isCollapsed ? ' is-collapsed' : ''}`}
                 />
@@ -162,8 +124,10 @@ function SubjectSections({
             </h2>
 
             {!isCollapsed ? (
-              <div id={panelId}>
-                <SetGrid sets={subjectSets} />
+              <div id={panelId} className="subject-panel">
+                {subjectSets.map((set) => (
+                  <SetRow key={set.id} set={set} lastStudied={lastStudied[set.slug]} />
+                ))}
               </div>
             ) : null}
           </section>
@@ -173,78 +137,48 @@ function SubjectSections({
   );
 }
 
-function ProgressView({ subjects }: { subjects: SubjectSummary[] }) {
-  const maxQuestions = Math.max(...subjects.map((subject) => subject.questionCount), 1);
-
+function EmptyState({ onReset, query }: { onReset: () => void; query: string }) {
   return (
-    <section className="progress-panel" aria-labelledby="progress-heading">
-      <div className="view-head">
-        <h2 id="progress-heading" className="view-title">
-          Progress
-        </h2>
-        <p className="view-copy">Question counts across your library.</p>
-      </div>
-
-      <div className="progress-list">
-        {subjects.map((subject) => {
-          const width = Math.round((subject.questionCount / maxQuestions) * 100);
-          return (
-            <div className="progress-row" key={subject.id}>
-              <div className="progress-row-head">
-                <span className="progress-name">
-                  <StudySetIcon iconKey={subject.iconKey} size={15} />
-                  {subject.name}
-                </span>
-                <span className="progress-meta">
-                  {plural(subject.setCount, 'set')} · {plural(subject.questionCount, 'question')}
-                </span>
-              </div>
-              <div
-                className="progress-track"
-                role="img"
-                aria-label={`${subject.name}: ${plural(subject.questionCount, 'question')}`}
-              >
-                <div className="progress-fill" style={{ width: `${width}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="progress-note">
-        These figures cover your whole library, not the current search or filter.
+    <div className="empty-state">
+      <p className="empty-title">No study sets found</p>
+      <p className="empty-copy">
+        {query ? `Nothing matches “${query.trim()}”.` : 'Nothing matches that search.'}
       </p>
-    </section>
+      <button type="button" className="empty-reset" onClick={onReset}>
+        Clear search
+      </button>
+    </div>
   );
 }
 
-export default function LibraryView({ library }: { library: LibraryData }) {
-  const [view, setView] = useState<View>('library');
+export default function LibraryView({
+  library,
+  leaderboard,
+  user,
+  lastStudied,
+}: {
+  library: LibraryData;
+  leaderboard: LeaderboardData;
+  user: ShellUser | null;
+  lastStudied: Record<string, string>;
+}) {
   const [query, setQuery] = useState('');
-  const [activeSubject, setActiveSubject] = useState('all');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  const needle = query.trim().toLowerCase();
+  const needle = useDeferredValue(query.trim().toLowerCase());
 
   const filteredSets = useMemo(
     () =>
       library.sets.filter((set) => {
-        if (activeSubject !== 'all' && set.subjectSlug !== activeSubject) return false;
         if (!needle) return true;
-        const haystack = [
-          set.title,
-          set.subjectName,
-          set.description ?? '',
-          ...set.topics,
-        ]
+        const haystack = [set.title, set.subjectName, set.description ?? '', ...set.topics]
           .join(' ')
           .toLowerCase();
         return haystack.includes(needle);
       }),
-    [library.sets, activeSubject, needle],
+    [library.sets, needle],
   );
 
-  const searching = needle.length > 0 || activeSubject !== 'all';
+  const searching = needle.length > 0;
 
   function toggleSubject(slug: string) {
     setCollapsed((previous) => {
@@ -255,11 +189,6 @@ export default function LibraryView({ library }: { library: LibraryData }) {
     });
   }
 
-  function resetFilters() {
-    setQuery('');
-    setActiveSubject('all');
-  }
-
   const notice = library.databaseError
     ? 'The live database is unreachable right now, so this is the bundled study snapshot. Changes may not persist until the connection recovers.'
     : library.source === 'bundled'
@@ -268,42 +197,8 @@ export default function LibraryView({ library }: { library: LibraryData }) {
 
   return (
     <div className="library-app">
-      <aside className="library-sidebar">
-        <Link href="/" className="brand" aria-label="Study Library home">
-          <span className="brand-mark">
-            <Library size={18} strokeWidth={1.8} aria-hidden="true" />
-          </span>
-          <span className="brand-copy">
-            <span className="brand-name">Wyatt Price</span>
-            <span className="brand-label">Study</span>
-          </span>
-        </Link>
-
-        <nav className="lib-nav" aria-label="Study library sections">
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className="lib-nav-item"
-                aria-current={view === item.id ? 'page' : undefined}
-                onClick={() => setView(item.id)}
-              >
-                <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        <p className="sidebar-credit">
-          Created by{' '}
-          <a href="https://wyattprice.dev" target="_blank" rel="noreferrer">
-            Wyatt Price
-          </a>
-        </p>
-      </aside>
+      <GuestSync signedIn={Boolean(user)} />
+      <Sidebar user={user} active="library" />
 
       <main className="library-main">
         <div className="library-main-inner">
@@ -315,77 +210,40 @@ export default function LibraryView({ library }: { library: LibraryData }) {
             <ThemeToggle inline />
           </header>
 
+          <div className="search-wrap">
+            <svg
+              className="search-icon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" />
+            </svg>
+            <input
+              type="search"
+              className="search-input"
+              placeholder="Search subjects or topics..."
+              aria-label="Search subjects or topics"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+
           {notice ? (
             <p className="db-notice" role="status">
               {notice}
             </p>
           ) : null}
 
-          {view !== 'progress' ? (
-            <>
-              <div className="search-wrap">
-                <Search className="search-icon" size={17} strokeWidth={1.8} aria-hidden="true" />
-                <input
-                  type="search"
-                  className="search-input"
-                  placeholder="Search subjects or topics..."
-                  aria-label="Search subjects or topics"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </div>
-
-              <div className="pill-row" role="group" aria-label="Filter by subject">
-                <button
-                  type="button"
-                  className="pill"
-                  aria-pressed={activeSubject === 'all'}
-                  onClick={() => setActiveSubject('all')}
-                >
-                  All
-                  <span className="pill-count">{library.stats.studySets}</span>
-                </button>
-                {library.subjects.map((subject) => (
-                  <button
-                    key={subject.id}
-                    type="button"
-                    className="pill"
-                    aria-pressed={activeSubject === subject.slug}
-                    onClick={() => setActiveSubject(subject.slug)}
-                  >
-                    {subject.name}
-                    <span className="pill-count">{subject.setCount}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : null}
-
-          <div className="stat-row" aria-label="Library statistics">
-            <div className="stat-cell">
-              <span className="stat-value">{library.stats.studySets}</span>
-              <span className="stat-label">Study sets</span>
-            </div>
-            <div className="stat-cell">
-              <span className="stat-value">{library.stats.questions}</span>
-              <span className="stat-label">Questions</span>
-            </div>
-            <div className="stat-cell">
-              <span className="stat-value">{library.stats.subjects}</span>
-              <span className="stat-label">Subjects</span>
-            </div>
-          </div>
-
-          {view === 'library' ? (
-            <>
-              <p className="result-count" aria-live="polite">
-                {searching
-                  ? `Showing ${filteredSets.length} of ${library.stats.studySets} study sets`
-                  : plural(library.stats.studySets, 'study set')}
-              </p>
-
+          <div className="library-columns">
+            <div className="library-results">
               {filteredSets.length === 0 ? (
-                <EmptyState query={query} onReset={resetFilters} />
+                <EmptyState query={query} onReset={() => setQuery('')} />
               ) : (
                 <SubjectSections
                   subjects={library.subjects}
@@ -393,28 +251,13 @@ export default function LibraryView({ library }: { library: LibraryData }) {
                   collapsed={collapsed}
                   onToggle={toggleSubject}
                   searching={searching}
+                  lastStudied={lastStudied}
                 />
               )}
-            </>
-          ) : null}
+            </div>
 
-          {view === 'recent' ? (
-            <section aria-labelledby="recent-heading">
-              <div className="view-head">
-                <h2 id="recent-heading" className="view-title">
-                  Recently added
-                </h2>
-                <p className="view-copy">Newest sets first, across every subject.</p>
-              </div>
-              {filteredSets.length === 0 ? (
-                <EmptyState query={query} onReset={resetFilters} />
-              ) : (
-                <SetGrid sets={filteredSets} />
-              )}
-            </section>
-          ) : null}
-
-          {view === 'progress' ? <ProgressView subjects={library.subjects} /> : null}
+            <Leaderboard data={leaderboard} />
+          </div>
         </div>
       </main>
     </div>
