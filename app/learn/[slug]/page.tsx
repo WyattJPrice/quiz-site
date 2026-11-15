@@ -2,12 +2,10 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { quizzes, getQuiz } from '@/data';
+import { getStudySet } from '@/lib/content';
 import LearnEngine from '@/components/LearnEngine';
 
-export async function generateStaticParams() {
-  return quizzes.map((q) => ({ slug: q.slug }));
-}
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -15,7 +13,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const quiz = getQuiz(slug);
+  const quiz = await getStudySet(slug);
   return { title: quiz ? `Learn — ${quiz.title} — Study Site` : 'Study Site' };
 }
 
@@ -25,7 +23,7 @@ export default async function LearnPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const quiz = getQuiz(slug);
+  const quiz = await getStudySet(slug);
   if (!quiz) notFound();
 
   return (

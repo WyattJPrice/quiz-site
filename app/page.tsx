@@ -1,16 +1,21 @@
-import { quizzes } from '@/data';
+import { getStudySets } from '@/lib/content';
+import { getAdminSession } from '@/lib/admin';
 import HomeGrid, { type QuizItem } from '@/components/HomeGrid';
 
-export default function HomePage() {
+export const dynamic = 'force-dynamic';
+
+export default async function HomePage() {
+  const [sets, adminSession] = await Promise.all([getStudySets(), getAdminSession()]);
   // Pass lightweight metadata only — question payloads stay on the server
-  const items: QuizItem[] = quizzes.map((q) => ({
-    slug: q.slug,
-    title: q.title,
-    description: q.description,
-    section: q.section ?? 'Other',
-    count: q.questions.length,
-    testDate: q.testDate,
+  const items: QuizItem[] = sets.map((s) => ({
+    id: s.id,
+    slug: s.slug,
+    title: s.title,
+    description: s.description,
+    section: s.section,
+    count: s.count,
+    testDate: s.testDate ?? undefined,
   }));
 
-  return <HomeGrid items={items} />;
+  return <HomeGrid items={items} isAdmin={!!adminSession} />;
 }

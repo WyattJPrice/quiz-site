@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Check, X, SlidersHorizontal } from 'lucide-react';
 import type { Question } from '@/data/types';
-import { shuffle, normalize, isFuzzyMatch } from '@/lib/quiz';
+import { shuffle, normalize, isFuzzyMatch, getPermutations } from '@/lib/quiz';
 import { generateChoices, getCorrectAnswer } from '@/lib/learn-algorithm';
 import { loadProgress, saveProgress, resetProgress, addKnownIndex, getKnownIndices } from '@/lib/learn-storage';
 import type { LearnSessionState } from '@/lib/learn-types';
@@ -27,10 +27,10 @@ export default function LearnEngine({ questions, slug }: Props) {
   const [pendingAdvance, setPendingAdvance] = useState(false);
 
   // Fill-in-blank state
-  const [inputValue, setInputValue] = useState('');
-  const [inputState, setInputState] = useState<'neutral' | 'correct' | 'wrong'>('neutral');
-  const [showReveal, setShowReveal] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputValues, setInputValues] = useState<string[]>([]);
+  const [inputStates, setInputStates] = useState<('neutral' | 'correct' | 'wrong')[]>([]);
+  const [reveals, setReveals] = useState<boolean[]>([]);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Filter sidebar
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
@@ -158,10 +158,11 @@ export default function LearnEngine({ questions, slug }: Props) {
     setChoiceResult({});
     setAnswered(false);
     setCardClass('');
-    setInputValue('');
-    setInputState('neutral');
-    setShowReveal(false);
-    setTimeout(() => inputRef.current?.focus(), 50);
+    const parts = q.choices ? [] : q.answer.split(',');
+    setInputValues(parts.map(() => ''));
+    setInputStates(parts.map((): 'neutral' | 'correct' | 'wrong' => 'neutral'));
+    setReveals(parts.map(() => false));
+    setTimeout(() => inputRefs.current[0]?.focus(), 50);
   }
 
   function markAnswer(isCorrect: boolean) {
@@ -218,42 +219,75 @@ export default function LearnEngine({ questions, slug }: Props) {
   }
 
   function handleSubmitInput() {
-    if (answered || !session || !inputValue.trim()) return;
-    setAnswered(true);
+    if (answered || !session) return;
 
     const qIdx = session.remaining[session.currentIdx];
     const q = questions[qIdx];
-    const correct = getCorrectAnswer(q);
-    const validOptions = correct.includes('/') ? correct.split('/') : [correct];
+    const answers = q.answer.split(',');
+    const userVals = answers.map((_, i) => inputValues[i] ?? '');
+    if (userVals.every((v) => !v.trim())) return;
+    setAnswered(true);
 
-    const normalizedInput = normalize(inputValue);
-    const isExact = validOptions.some((opt) => normalize(opt) === normalizedInput);
-    const isFuzzy = !isExact && isFuzzyMatch(inputValue, validOptions);
-    const isCorrect = isExact || isFuzzy;
+    const swapped =
+      answers.length > 1 &&
+      getPermutations(userVals).some(
+        (perm) =>
+          perm.join('|') !== userVals.join('|') &&
+          perm.every((val, i) => {
+            const opts = answers[i].split('/');
+            return (
+              opts.map((o) => normalize(o)).includes(normalize(val)) ||
+              isFuzzyMatch(val, opts)
+            );
+          })
+      );
 
-    if (isCorrect) {
-      setInputState('correct');
+    const newStates: ('neutral' | 'correct' | 'wrong')[] = [];
+    const newReveals: boolean[] = [];
+    let allCorrect = true;
+
+    answers.forEach((ans, i) => {
+      const opts = ans.split('/');
+      const exact = opts.map((o) => normalize(o)).includes(normalize(userVals[i]));
+      const fuzzy = !exact && isFuzzyMatch(userVals[i], opts);
+      const right = exact || fuzzy || swapped;
+      newStates.push(right ? 'correct' : 'wrong');
+      newReveals.push(!right);
+      if (!right) allCorrect = false;
+    });
+
+    setInputStates(newStates);
+    setReveals(newReveals);
+
+    if (allCorrect) {
       setCardClass('correct-state pop');
     } else {
-      setInputState('wrong');
       setCardClass('wrong-state shake');
-      setShowReveal(true);
     }
-    markAnswer(isCorrect);
+    markAnswer(allCorrect);
 
-    if (isCorrect) {
+    if (allCorrect) {
       setTimeout(() => setPendingAdvance(true), 900);
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') {
-      if (answered) {
-        advance();
-      } else {
-        handleSubmitInput();
-      }
+  function handleKeyDown(
+    e: React.KeyboardEvent<HTMLInputElement>,
+    i: number,
+    total: number
+  ) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (answered) {
+      advance();
+      return;
     }
+    if (total > 1 && i < total - 1) {
+      inputRefs.current[i + 1]?.focus();
+      inputRefs.current[i + 1]?.select();
+      return;
+    }
+    handleSubmitInput();
   }
 
   function advance() {
@@ -502,31 +536,49 @@ export default function LearnEngine({ questions, slug }: Props) {
           </>
         ) : (
           <>
-            <div className="mb-2.5 text-[11px] tracking-[0.12em] text-muted-foreground uppercase">Your answer</div>
-            <div className="mb-3">
-              <input
-                ref={inputRef}
-                type="text"
-                className={`blank-input ${inputState}`}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={answered}
-                autoComplete="off"
-                spellCheck={false}
-              />
+            <div className="mb-2.5 text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
+              {q.answer.includes(',') ? `Fill in all ${q.answer.split(',').length} blanks` : 'Your answer'}
             </div>
-            {showReveal && (
-              <div className="text-[13px] text-correct">
-                Correct answer: {getCorrectAnswer(q)}
-              </div>
-            )}
+            <div className="mb-3">
+              {q.answer.split(',').map((ans, i) => (
+                <div key={i} className="mb-3">
+                  <input
+                    ref={(el) => {
+                      inputRefs.current[i] = el;
+                    }}
+                    type="text"
+                    className={`blank-input ${inputStates[i] ?? 'neutral'}`}
+                    placeholder={q.answer.includes(',') ? `Blank ${i + 1}` : 'Type your answer...'}
+                    value={inputValues[i] ?? ''}
+                    onChange={(e) =>
+                      setInputValues((vals) => {
+                        const v = [...vals];
+                        v[i] = e.target.value;
+                        return v;
+                      })
+                    }
+                    onKeyDown={(e) => handleKeyDown(e, i, q.answer.split(',').length)}
+                    disabled={answered}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <div
+                    className={`mt-1.5 pl-1 text-[13px] text-correct transition-all ${
+                      reveals[i] ? 'opacity-100' : '-translate-y-1 opacity-0'
+                    }`}
+                  >
+                    ✓ {ans.split('/')[0]}
+                  </div>
+                </div>
+              ))}
+            </div>
             {!answered && (
               <div className="mt-7 flex gap-3">
                 <Button
                   className="flex-1"
                   onClick={handleSubmitInput}
-                  disabled={!inputValue.trim()}
+                  disabled={inputValues.every((v) => !v.trim())}
                 >
                   Check
                 </Button>
@@ -535,7 +587,7 @@ export default function LearnEngine({ questions, slug }: Props) {
           </>
         )}
 
-        {answered && !isChoice && inputState === 'wrong' && (
+        {answered && !isChoice && inputStates.some((s) => s === 'wrong') && (
           <div className="mt-7 flex gap-3">
             <Button className="flex-1" onClick={advance}>
               Continue

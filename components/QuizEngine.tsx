@@ -169,8 +169,8 @@ export default function QuizEngine({
   }, [complete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep a ref to the latest state + functions so the Enter handler never goes stale
-  const stateRef = useRef({ answered: false, isChoice: false });
-  stateRef.current = { answered, isChoice };
+  const stateRef = useRef({ answered: false, isChoice: false, isMulti: false });
+  stateRef.current = { answered, isChoice, isMulti };
 
   const fnRef = useRef({
     checkAnswer: () => {},
@@ -309,8 +309,27 @@ export default function QuizEngine({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Enter') return;
-      if (stateRef.current.answered) fnRef.current.nextQuestion();
-      else if (!stateRef.current.isChoice) fnRef.current.checkAnswer();
+      if (stateRef.current.answered) {
+        fnRef.current.nextQuestion();
+        return;
+      }
+      if (stateRef.current.isChoice) return;
+      // Multi-blank: Enter moves to the next blank first; last blank submits
+      if (stateRef.current.isMulti) {
+        const inputs = Array.from(
+          document.querySelectorAll<HTMLInputElement>('[id^="blank-"]')
+        ).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+        const active = document.activeElement;
+        const activeIdx = active ? inputs.findIndex((el) => el === active) : -1;
+        if (activeIdx >= 0 && activeIdx < inputs.length - 1) {
+          e.preventDefault();
+          const next = inputs[activeIdx + 1];
+          next.focus();
+          next.select();
+          return;
+        }
+      }
+      fnRef.current.checkAnswer();
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);

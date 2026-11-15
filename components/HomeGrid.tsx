@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search } from 'lucide-react';
+import { Search, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { getKnownIndices } from '@/lib/learn-storage';
+import { isOffline } from '@/lib/offline-status';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 export interface QuizItem {
+  id: string;
   slug: string;
   title: string;
   description: string;
@@ -33,10 +36,17 @@ function formatTestDate(iso: string): string {
   });
 }
 
-export default function HomeGrid({ items }: { items: QuizItem[] }) {
+export default function HomeGrid({
+  items,
+  isAdmin = false,
+}: {
+  items: QuizItem[];
+  isAdmin?: boolean;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [learnPct, setLearnPct] = useState<Record<string, number>>({});
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   // Starts empty (SSR/mount render) and fills after mount — client-side date
   // check keeps the upcoming/passed classification hydration-safe
   const [upcoming, setUpcoming] = useState<QuizItem[]>([]);
@@ -84,18 +94,63 @@ export default function HomeGrid({ items }: { items: QuizItem[] }) {
 
   const totalCount = items.reduce((a, q) => a + q.count, 0);
 
+  async function handleDelete(q: QuizItem) {
+    if (!window.confirm(`Delete "${q.title}" and its ${q.count} questions? This cannot be undone.`)) return;
+    setDeletingIds((prev) => new Set(prev).add(q.id));
+    try {
+      const res = await fetch(`/api/admin/sets/${q.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        toast.error(data.error ?? 'Could not delete the set.');
+        return;
+      }
+      toast.success(`Deleted "${q.title}".`);
+      router.refresh();
+    } catch {
+      toast.error('Could not delete the set.');
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(q.id);
+        return next;
+      });
+    }
+  }
+
   function renderCard(q: QuizItem, testLabel?: string) {
     return (
       <div
         key={q.slug}
         onClick={() => router.push(`/learn/${q.slug}`)}
-        className={`flex cursor-pointer flex-col bg-card p-5 shadow-xs transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:shadow-md ${
+        className={`relative flex cursor-pointer flex-col bg-card p-5 shadow-xs transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:shadow-md ${
           testLabel
             ? 'border border-primary/40 hover:border-primary'
             : 'border border-border hover:border-muted-foreground/50'
         }`}
       >
-        <div className="text-[15px] leading-snug font-semibold">{q.title}</div>
+        {isAdmin && (
+          <span
+            className="absolute top-3 right-3 z-10 flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => router.push(`/create?id=${q.id}`)}
+              className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              aria-label={`Edit ${q.title}`}
+            >
+              <Pencil className="size-3.5" />
+            </button>
+            <button
+              onClick={() => handleDelete(q)}
+              disabled={deletingIds.has(q.id)}
+              className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+              aria-label={`Delete ${q.title}`}
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </span>
+        )}
+        <div className={`text-[15px] leading-snug font-semibold ${isAdmin ? 'pr-14' : ''}`}>{q.title}</div>
         {testLabel && (
           <div className="mt-1 text-xs font-semibold text-primary">
             Test · {testLabel}
@@ -192,7 +247,18 @@ export default function HomeGrid({ items }: { items: QuizItem[] }) {
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setQuery(value);
+              // Hidden offline launcher: exact code, and only while offline.
+              if (value === '0000') {
+                void isOffline().then((offline) => {
+                  if (!offline) return;
+                  setQuery('');
+                  window.dispatchEvent(new Event('study:games'));
+                });
+              }
+            }}
             placeholder="Search quizzes…"
             className="h-9 pl-9 text-sm"
             aria-label="Search quizzes"

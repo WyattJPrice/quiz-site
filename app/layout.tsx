@@ -4,6 +4,7 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import Navbar from '@/components/Navbar';
 import ThemeProvider from '@/components/ThemeProvider';
+import OfflineGames from '@/components/OfflineGames';
 import { Toaster } from '@/components/ui/sonner';
 
 const ibmPlexSans = IBM_Plex_Sans({
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <Navbar />
           {children}
+          <OfflineGames />
           <Toaster position="bottom-center" />
         </ThemeProvider>
       </body>

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User } from 'lucide-react';
+import { Plus, User } from 'lucide-react';
 import { toast } from 'sonner';
 import ThemeToggle from '@/components/ThemeToggle';
 import LeaderboardModal from '@/components/LeaderboardModal';
@@ -63,11 +63,14 @@ function GoogleIcon() {
 const iconBtn =
   'inline-flex h-9 w-9 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground';
 
+const ADMIN_EMAILS = ['wyattprice09ono@gmail.com', '28wprice@ndpios.com'];
+
 export default function Navbar() {
   const [lbOpen, setLbOpen] = useState(false);
   const { data: session } = authClient.useSession();
   const router = useRouter();
   const user = session?.user;
+  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
   function handleGoogleSignIn() {
     signInWithGoogle().catch(() => toast.error('Sign-in failed. Try again.'));
@@ -94,6 +97,12 @@ export default function Navbar() {
             >
               <TrophyIcon />
             </button>
+
+            {isAdmin && (
+              <Link href="/create" className={iconBtn} aria-label="Create a set">
+                <Plus className="size-5" />
+              </Link>
+            )}
 
             <ThemeToggle />
 
