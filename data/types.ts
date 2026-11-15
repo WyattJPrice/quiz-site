@@ -12,4 +12,7 @@ export interface QuizMeta {
   description: string;
   questions: Question[];
   section?: string;
+  /** Upcoming test date (ISO, e.g. 2026-11-20). Card shows it in the
+   *  Upcoming Tests section until the date passes. */
+  testDate?: string;
 }

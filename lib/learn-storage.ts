@@ -27,3 +27,29 @@ export function resetProgress(slug: string): void {
     // ignore
   }
 }
+
+const KNOWN_KEY_PREFIX = 'learn-known-';
+
+export function getKnownIndices(slug: string): number[] {
+  try {
+    const raw = localStorage.getItem(KNOWN_KEY_PREFIX + slug);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addKnownIndex(slug: string, idx: number): void {
+  try {
+    const known = new Set(getKnownIndices(slug));
+    known.add(idx);
+    localStorage.setItem(
+      KNOWN_KEY_PREFIX + slug,
+      JSON.stringify([...known])
+    );
+  } catch {
+    // ignore
+  }
+}

@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { toast } from 'sonner';
+import { Check, X, SlidersHorizontal } from 'lucide-react';
 import type { Question } from '@/data/types';
 import { shuffle, normalize, isFuzzyMatch } from '@/lib/quiz';
 import { generateChoices, getCorrectAnswer } from '@/lib/learn-algorithm';
-import { loadProgress, saveProgress, resetProgress } from '@/lib/learn-storage';
+import { loadProgress, saveProgress, resetProgress, addKnownIndex, getKnownIndices } from '@/lib/learn-storage';
 import type { LearnSessionState } from '@/lib/learn-types';
+import { authClient, signInWithGoogle } from '@/lib/session';
+import { Button } from '@/components/ui/button';
 
 interface Props {
   questions: Question[];
@@ -31,6 +35,7 @@ export default function LearnEngine({ questions, slug }: Props) {
   // Filter sidebar
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { data: authSession } = authClient.useSession();
 
   const allCats = useMemo(
     () => Array.from(new Set(questions.map((q) => q.cat))),
@@ -110,6 +115,39 @@ export default function LearnEngine({ questions, slug }: Props) {
     }
   }, [pendingAdvance]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Remind to sign in after finishing a full study session, and sync progress
+  useEffect(() => {
+    if (!complete) return;
+    const signedIn = !!authSession?.user;
+    if (session) {
+      if (session.totalCorrect + session.totalWrong > 0) {
+        try {
+          fetch('/api/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              slug,
+              kind: 'learn',
+              knownIndices: getKnownIndices(slug),
+            }),
+          }).catch(() => {});
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (!signedIn) {
+      toast('Sign in to save your progress and appear on the leaderboard.', {
+        position:
+          window.innerWidth >= 640 ? 'bottom-right' : 'bottom-center',
+        action: {
+          label: 'Sign in with Google',
+          onClick: () => signInWithGoogle().catch(() => {}),
+        },
+      });
+    }
+  }, [complete]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function loadQuestion(state: LearnSessionState) {
     const qIdx = state.remaining[state.currentIdx];
     if (qIdx === undefined) return;
@@ -132,12 +170,25 @@ export default function LearnEngine({ questions, slug }: Props) {
     const updated = { ...session };
     if (isCorrect) {
       updated.totalCorrect++;
+      addKnownIndex(slug, qIdx);
     } else {
       updated.totalWrong++;
       updated.wrongPile = [...updated.wrongPile, qIdx];
     }
     setSession(updated);
     saveProgress(updated);
+    if (authSession?.user) {
+      try {
+        fetch('/api/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answered: 1 }),
+          keepalive: true,
+        }).catch(() => {});
+      } catch {
+        // ignore
+      }
+    }
   }
 
   function handleChoice(choice: string) {
@@ -259,46 +310,58 @@ export default function LearnEngine({ questions, slug }: Props) {
   const sidebar = (
     <>
       {sidebarOpen && (
-        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 z-50 bg-black/45" onClick={() => setSidebarOpen(false)} />
       )}
-      <div className={`sidebar${sidebarOpen ? ' open' : ''}`}>
-        <div className="sidebar-header">
-          <span className="sidebar-title">Categories</span>
-          <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>✕</button>
-        </div>
-        <div className="sidebar-actions">
+      <div
+        className={`fixed top-0 left-0 z-50 flex h-dvh w-64 flex-col border-r border-border bg-card shadow-lg transition-transform duration-200 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <span className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
+            Categories
+          </span>
           <button
-            className="sidebar-action-btn"
-            onClick={() => setSelectedCats(new Set(allCats))}
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close"
           >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="flex gap-2 border-b border-border px-5 py-2.5">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelectedCats(new Set(allCats))}>
             All
-          </button>
-          <button
-            className="sidebar-action-btn"
-            onClick={() => setSelectedCats(new Set())}
-          >
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setSelectedCats(new Set())}>
             None
-          </button>
+          </Button>
         </div>
-        <div className="sidebar-cats">
+        <div className="flex-1 overflow-y-auto py-1">
           {allCats.map((cat) => (
             <div
               key={cat}
-              className={`sidebar-cat-item${selectedCats.has(cat) ? ' checked' : ''}`}
+              className="flex cursor-pointer items-center gap-2.5 px-5 py-2.5 text-[13px] hover:bg-accent select-none"
               onClick={() => toggleCat(cat)}
             >
-              <div className="sidebar-cat-check">
-                {selectedCats.has(cat) && <span className="sidebar-cat-check-icon">✓</span>}
-              </div>
-              <span className="sidebar-cat-name">{cat}</span>
-              <span className="sidebar-cat-count">{catCounts[cat]}</span>
+              <span
+                className={`flex size-4 flex-shrink-0 items-center justify-center border ${
+                  selectedCats.has(cat) ? 'border-primary bg-primary' : 'border-border'
+                }`}
+              >
+                {selectedCats.has(cat) && <Check className="size-2.5 text-white" strokeWidth={3.5} />}
+              </span>
+              <span className={`flex-1 truncate ${selectedCats.has(cat) ? '' : 'text-muted-foreground'}`}>
+                {cat}
+              </span>
+              <span className="flex-shrink-0 text-xs tabular-nums text-muted-foreground">
+                {catCounts[cat]}
+              </span>
             </div>
           ))}
         </div>
-        <div className="sidebar-footer">
-          <span className="sidebar-q-count">
-            <strong>{filteredCount}</strong> / {questions.length} questions active
-          </span>
+        <div className="border-t border-border px-5 py-3 text-center text-xs text-muted-foreground">
+          <strong className="text-foreground">{filteredCount}</strong> / {questions.length} questions active
         </div>
       </div>
     </>
@@ -306,14 +369,16 @@ export default function LearnEngine({ questions, slug }: Props) {
 
   // ── Filter bar ───────────────────────────────────────────────────
   const filterBar = (
-    <div className="filter-bar">
-      <button className="filter-toggle-btn" onClick={() => setSidebarOpen(true)}>
-        <span className="filter-toggle-icon">⊞</span>
-        <span>Categories</span>
+    <div className="mb-4">
+      <Button variant="outline" size="sm" className="text-xs" onClick={() => setSidebarOpen(true)}>
+        <SlidersHorizontal className="size-3.5" />
+        Categories
         {selectedCats.size < allCats.length && allCats.length > 0 && (
-          <span className="filter-chip">{selectedCats.size} / {allCats.length}</span>
+          <span className="ml-1 inline-flex h-4 items-center rounded-full bg-primary px-1.5 text-[10px] leading-none font-bold text-primary-foreground">
+            {selectedCats.size} / {allCats.length}
+          </span>
         )}
-      </button>
+      </Button>
     </div>
   );
 
@@ -323,15 +388,11 @@ export default function LearnEngine({ questions, slug }: Props) {
       <>
         {sidebar}
         {filterBar}
-        <div className="filter-empty">
-          <p>No categories selected.</p>
-          <button
-            className="btn btn-primary"
-            style={{ marginTop: 16 }}
-            onClick={() => setSelectedCats(new Set(allCats))}
-          >
+        <div className="border border-border bg-card p-16 text-center shadow-xs">
+          <p className="text-muted-foreground">No categories selected.</p>
+          <Button className="mt-4" onClick={() => setSelectedCats(new Set(allCats))}>
             Select All
-          </button>
+          </Button>
         </div>
       </>
     );
@@ -341,30 +402,29 @@ export default function LearnEngine({ questions, slug }: Props) {
     return (
       <>
         {sidebar}
-        <div className="complete show">
-          <div className="complete-icon">&#10003;</div>
-          <h2>All questions correct!</h2>
-          <p>Finished in {session.round} round{session.round > 1 ? 's' : ''} with {session.totalCorrect} correct and {session.totalWrong} wrong answers total.</p>
-          <div className="final-stats">
-            <div className="stat-big green">
-              <span className="num">{filteredCount}</span>
-              <span className="lbl">Questions</span>
+        <div className="border border-border bg-card p-12 text-center shadow-xs sm:p-16">
+          <h2 className="text-3xl font-bold tracking-tight">All questions correct!</h2>
+          <p className="mt-2 text-[15px] text-muted-foreground">
+            Finished in {session.round} round{session.round > 1 ? 's' : ''} with {session.totalCorrect} correct and {session.totalWrong} wrong answers total.
+          </p>
+          <div className="mt-9 mb-9 flex justify-center gap-10">
+            <div>
+              <span className="block text-4xl font-medium tabular-nums text-correct">
+                {filteredCount}
+              </span>
+              <span className="text-xs tracking-[0.1em] text-muted-foreground uppercase">Questions</span>
             </div>
-            <div className="stat-big">
-              <span className="num" style={{ color: 'var(--accent)' }}>{session.round}</span>
-              <span className="lbl">Rounds</span>
+            <div>
+              <span className="block text-4xl font-medium tabular-nums text-primary">{session.round}</span>
+              <span className="text-xs tracking-[0.1em] text-muted-foreground uppercase">Rounds</span>
             </div>
           </div>
-          <button className="btn btn-restart" onClick={handleReset}>
-            Study Again
-          </button>
-          <button
-            className="btn btn-skip"
-            style={{ marginTop: 12, display: 'block', width: '100%' }}
-            onClick={() => setSidebarOpen(true)}
-          >
-            Change Categories
-          </button>
+          <div className="mt-9 flex justify-center gap-3">
+            <Button onClick={handleReset}>Study Again</Button>
+            <Button variant="outline" onClick={() => setSidebarOpen(true)}>
+              Change Categories
+            </Button>
+          </div>
         </div>
       </>
     );
@@ -382,40 +442,55 @@ export default function LearnEngine({ questions, slug }: Props) {
 
       {filterBar}
 
-      <div className="learn-topbar">
-        <div className="learn-progress-bar">
-          <div className="learn-progress-fill" style={{ width: `${progressPct}%` }} />
+      <div className="mb-7">
+        <div className="mb-2.5 h-1 w-full overflow-hidden bg-border">
+          <div className="h-full bg-correct transition-[width] duration-300" style={{ width: `${progressPct}%` }} />
         </div>
-        <div className="learn-topbar-info">
-          <span className="learn-mastery-count">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
             Round {session.round} {session.wrongPile.length > 0 && `· ${session.wrongPile.length} wrong`}
           </span>
-          <span className="q-counter">{session.currentIdx + 1}/{session.remaining.length}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {session.currentIdx + 1}/{session.remaining.length}
+          </span>
         </div>
       </div>
 
       <div
-        className={`card${cardClass ? ` ${cardClass}` : ''}`}
+        className={`relative border bg-card px-6 py-9 shadow-xs sm:px-10 sm:py-10 ${
+          cardClass.includes('correct-state')
+            ? 'border-correct'
+            : cardClass.includes('wrong-state')
+            ? 'border-wrong'
+            : 'border-border'
+        } ${cardClass}`}
         onAnimationEnd={() =>
           setCardClass((prev) => prev.replace(' pop', '').replace(' shake', ''))
         }
       >
-        <div className="category-badge">{q.cat}</div>
-        <div className="question-text">
+        <div className="mb-4 inline-block border border-primary/30 px-2.5 py-1 text-[10px] tracking-[0.14em] text-primary uppercase">
+          {q.cat}
+        </div>
+        <div className="mb-8 text-[21px] leading-normal font-semibold tracking-tight sm:text-[22px]">
           {q.question.replace(/_{5,}/g, '_____')}
         </div>
 
         {isChoice ? (
           <>
-            <div className="blank-label">Choose one:</div>
+            <div className="mb-2.5 text-[11px] tracking-[0.12em] text-muted-foreground uppercase">Choose one:</div>
             <div>
               {choices.map((choice, i) => {
                 const r = choiceResult[choice];
-                const cls = `mc-choice${r === 'correct' ? ' mc-correct' : ''}${r === 'wrong' ? ' mc-wrong' : ''}`;
+                const cls =
+                  r === 'correct'
+                    ? 'border-correct bg-correct/10 text-correct'
+                    : r === 'wrong'
+                    ? 'border-wrong bg-wrong/10 text-wrong'
+                    : 'border-border bg-background hover:border-muted-foreground/60 hover:bg-accent';
                 return (
                   <button
                     key={`${choice}-${i}`}
-                    className={cls}
+                    className={`mb-2 w-full border px-4 py-3.5 text-left text-sm transition-colors disabled:cursor-default ${cls}`}
                     onClick={() => handleChoice(choice)}
                     disabled={answered}
                   >
@@ -427,8 +502,8 @@ export default function LearnEngine({ questions, slug }: Props) {
           </>
         ) : (
           <>
-            <div className="blank-label">Your answer</div>
-            <div className="input-wrap">
+            <div className="mb-2.5 text-[11px] tracking-[0.12em] text-muted-foreground uppercase">Your answer</div>
+            <div className="mb-3">
               <input
                 ref={inputRef}
                 type="text"
@@ -442,37 +517,37 @@ export default function LearnEngine({ questions, slug }: Props) {
               />
             </div>
             {showReveal && (
-              <div className="correct-answer-reveal show">
+              <div className="text-[13px] text-correct">
                 Correct answer: {getCorrectAnswer(q)}
               </div>
             )}
             {!answered && (
-              <div className="btn-row">
-                <button
-                  className="btn btn-primary"
+              <div className="mt-7 flex gap-3">
+                <Button
+                  className="flex-1"
                   onClick={handleSubmitInput}
                   disabled={!inputValue.trim()}
                 >
                   Check
-                </button>
+                </Button>
               </div>
             )}
           </>
         )}
 
         {answered && !isChoice && inputState === 'wrong' && (
-          <div className="btn-row">
-            <button className="btn btn-primary" onClick={advance}>
+          <div className="mt-7 flex gap-3">
+            <Button className="flex-1" onClick={advance}>
               Continue
-            </button>
+            </Button>
           </div>
         )}
 
         {answered && isChoice && choiceResult[Object.keys(choiceResult).find(k => choiceResult[k] === 'wrong') || ''] && (
-          <div className="btn-row">
-            <button className="btn btn-primary" onClick={advance}>
+          <div className="mt-7 flex gap-3">
+            <Button className="flex-1" onClick={advance}>
               Continue
-            </button>
+            </Button>
           </div>
         )}
       </div>
