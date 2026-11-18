@@ -52,6 +52,16 @@ Punctuation, capitalization, and accents do not need to match exactly — the ap
 - Keep all choices roughly similar in length and format when possible; capitalize consistently with the answer.
 - Comprehension questions may quote or reference the source material; for quotes, use double quotes escaped in JSON.
 
+## Source fidelity (critical)
+
+The study guide is the authority. Your job is to convert it into the app's format, not to rewrite it. Unrequested rewording is the most serious failure mode — treat the teacher's text as approved and final.
+
+- If the material contains ready-made questions and answers, use them as written. Carry each question's wording and its answer's wording into the output with only minimal cleanup (see below). Do not paraphrase, condense further, or reword for style.
+- If a question in the source quotes a sentence or passage (e.g. \`What figurative language is found in this sentence: "The voices of the cannon were clamoring in interminable chorus."\`), reproduce that quote verbatim in the prompt — including its punctuation, capitalization, and any dialect spellings. NEVER replace a quoted sentence with a paraphrase or description of it. Wrong: \`Which figurative device is used in the sentence describing the cannon voices?\` Right: the prompt with the full quote.
+- Answers must preserve every distinct fact the guide gives. You may trim redundant restatements and smooth grammar, but if the guide's answer gives several reasons or details, keep all of them — dropping a supporting detail counts as changing the answer, not shortening it. Example: if the guide answers with three separate reasons, the output answer must contain all three, not just the most obvious one.
+- Do not invent or substitute content. Except for multiple-choice distractors, every question and answer must be traceable to the material.
+- Allowed light edits ONLY: fixing obvious typos, replacing pronouns so the question stands alone, normalizing quote characters for JSON, trimming duplicated phrasing, and joining choppy fragments into one natural sentence. When in doubt, keep the original wording.
+
 ## Content selection
 
 - Prioritize what the material itself emphasizes: definitions, key terms, names, dates, cause-effect relationships, and direct comprehension checks.
