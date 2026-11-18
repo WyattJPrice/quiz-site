@@ -223,25 +223,34 @@ export default function AiGenerateModal({
           )}
         </div>
 
-        <div className="text-center text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
-          or paste text
-        </div>
-        {/* Fixed height (field-sizing-fixed, not field-sizing-content) so a long
-            paste scrolls inside the box instead of stretching it and the dialog. */}
-        <Textarea
-          value={fileText ? '' : pasteText}
-          disabled={!!fileName}
-          onChange={(e) => setPasteText(e.target.value)}
-          placeholder="Paste your notes, vocab list, or chapter text here…"
-          className="h-36 field-sizing-fixed overflow-y-auto"
-        />
+        {/* Hidden entirely once a file is uploaded — the file text replaces
+            the paste box. Fixed height (field-sizing-fixed, not
+            field-sizing-content) so a long paste scrolls inside the box
+            instead of stretching it and the dialog. */}
+        {!fileName && (
+          <>
+            <div className="text-center text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+              or paste text
+            </div>
+            <Textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder="Paste your notes, vocab list, or chapter text here…"
+              className="h-28 field-sizing-fixed overflow-y-auto"
+            />
+          </>
+        )}
 
         <div>
+          {/* Grows to fill the space the paste section vacates when a file
+              is uploaded, keeping the dialog's overall size the same. */}
           <Textarea
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             placeholder="Optional: extra instructions for the AI — e.g. &quot;20 questions, mostly multiple choice, focus on chapter 3 terms&quot;"
-            className="h-16 field-sizing-fixed overflow-y-auto"
+            className={`field-sizing-fixed overflow-y-auto ${
+              fileName ? 'h-44' : 'h-24'
+            }`}
           />
         </div>
 
