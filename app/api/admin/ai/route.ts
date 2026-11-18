@@ -7,9 +7,9 @@ export const maxDuration = 300;
 
 const MAX_SOURCE_CHARS = 100000;
 const DEFAULT_QUESTION_COUNT = 15;
-const MAX_QUESTION_COUNT = 40;
-const MAX_TOKENS = 16000;
-const ATTEMPT_TIMEOUT_MS = 90000;
+const MAX_QUESTION_COUNT = 150;
+const MAX_TOKENS = 32000;
+const ATTEMPT_TIMEOUT_MS = 120000;
 const TOTAL_DEADLINE_MS = 270000;
 const RETRY_BACKOFF_MS = 3000;
 
@@ -80,12 +80,13 @@ function validate(raw: unknown): { questions: AiQuestion[] } {
   return { questions };
 }
 
-/** Pulls a question count out of the teacher's instructions ("12 questions"). */
+/** Pulls a question count out of the teacher's instructions ("56 questions").
+ *  Returns the raw number (may exceed the cap) or null when unspecified. */
 function extractQuestionCount(userPrompt: string): number | null {
-  const m = userPrompt.match(/\b(\d{1,3})\s*questions\b/i);
+  const m = userPrompt.match(/\b(\d{1,3})\s*questions?\b/i);
   if (!m) return null;
   const n = parseInt(m[1], 10);
-  return n > 0 && n <= MAX_QUESTION_COUNT ? n : null;
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function isRetryable(err: unknown): boolean {
@@ -103,7 +104,8 @@ async function callOpenRouter(
   model: string,
   source: string,
   userPrompt: string,
-  questionCount: number
+  questionCount: number,
+  appendCount: boolean
 ) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY is not configured');
@@ -111,9 +113,9 @@ async function callOpenRouter(
   let userContent = `Study material:\n"""\n${source}\n"""`;
   const extras: string[] = [];
   if (userPrompt) extras.push(`Teacher instructions: ${userPrompt}`);
-  if (!extractQuestionCount(userPrompt)) {
-    extras.push(`Generate ${questionCount} questions.`);
-  }
+  // Only spell out the count when the teacher didn't state a usable one,
+  // so the instruction never contradicts their own prompt.
+  if (appendCount) extras.push(`Generate exactly ${questionCount} questions.`);
   if (extras.length) userContent += `\n\n${extras.join('\n')}`;
 
   const started = Date.now();
@@ -125,7 +127,8 @@ async function callOpenRouter(
     },
     body: JSON.stringify({
       model,
-      max_tokens: MAX_TOKENS,
+      // Headroom for large MC sets: choices make completion tokens scale with count.
+      max_tokens: Math.min(MAX_TOKENS, 4000 + questionCount * 400),
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: AI_SYSTEM_PROMPT },
@@ -185,7 +188,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const questionCount = extractQuestionCount(userPrompt) ?? DEFAULT_QUESTION_COUNT;
+  const statedCount = extractQuestionCount(userPrompt);
+  // Honor the teacher's count when it's within range; otherwise clamp very
+  // large/odd requests to the cap so the model still gets a clear number.
+  const questionCount = statedCount
+    ? Math.min(statedCount, MAX_QUESTION_COUNT)
+    : DEFAULT_QUESTION_COUNT;
+  const appendCount = statedCount === null || statedCount > MAX_QUESTION_COUNT;
   const started = Date.now();
   const attemptLog: string[] = [];
   let lastErr: unknown;
@@ -196,7 +205,13 @@ export async function POST(request: Request) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       if (Date.now() - started > TOTAL_DEADLINE_MS - ATTEMPT_TIMEOUT_MS) break;
       try {
-        const result = await callOpenRouter(model, source, userPrompt, questionCount);
+        const result = await callOpenRouter(
+          model,
+          source,
+          userPrompt,
+          questionCount,
+          appendCount
+        );
         console.log(`[ai] success via ${result.model} after ${Math.round((Date.now() - started) / 1000)}s total, ${result.questions.length} questions`);
         return Response.json({
           model: result.model,
