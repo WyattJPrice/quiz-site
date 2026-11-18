@@ -141,21 +141,16 @@ export default function OfflineGames() {
 
     const onKeyDown = (event: KeyboardEvent) => shortcutRef.current(event);
     const onOnline = () => close();
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') close();
-    };
     const onOpenRequest = () => {
       void openOverlay();
     };
 
     document.addEventListener('keydown', onKeyDown, true);
-    document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('online', onOnline);
     window.addEventListener(OPEN_EVENT, onOpenRequest);
 
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
-      document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('online', onOnline);
       window.removeEventListener(OPEN_EVENT, onOpenRequest);
     };
