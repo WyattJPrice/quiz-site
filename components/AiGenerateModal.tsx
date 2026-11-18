@@ -17,7 +17,18 @@ import {
   type EditorQuestionType,
 } from '@/lib/create-editor';
 
-const MAX_SOURCE_CHARS = 24000;
+const MAX_SOURCE_CHARS = 100000;
+
+interface GenerateResponse {
+  error?: string;
+  questions?: {
+    type?: string;
+    category?: string;
+    prompt?: string;
+    answer?: string;
+    choices?: string[];
+  }[];
+}
 
 async function extractPdfText(file: File): Promise<string> {
   const pdfjs = await import('pdfjs-dist');
@@ -48,6 +59,7 @@ export default function AiGenerateModal({
   onInsert: (questions: EditorQuestion[]) => void;
 }) {
   const [fileText, setFileText] = useState('');
+  const [fileFullLen, setFileFullLen] = useState(0);
   const [fileName, setFileName] = useState('');
   const [pasteText, setPasteText] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -57,6 +69,7 @@ export default function AiGenerateModal({
 
   function reset() {
     setFileText('');
+    setFileFullLen(0);
     setFileName('');
     setPasteText('');
     setInstructions('');
@@ -64,8 +77,17 @@ export default function AiGenerateModal({
 
   function clearFile() {
     setFileText('');
+    setFileFullLen(0);
     setFileName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function acceptFile(full: string, name: string) {
+    const trimmed = full.slice(0, MAX_SOURCE_CHARS);
+    setFileText(trimmed);
+    setFileFullLen(full.length > trimmed.length ? full.length : 0);
+    setFileName(name);
+    setPasteText('');
   }
 
   async function handleFile(file: File | null) {
@@ -79,14 +101,9 @@ export default function AiGenerateModal({
           setReadingFile(false);
           return;
         }
-        setFileText(text.slice(0, MAX_SOURCE_CHARS));
-        setFileName(file.name);
-        setPasteText('');
+        acceptFile(text, file.name);
       } else {
-        const text = await file.text();
-        setFileText(text.slice(0, MAX_SOURCE_CHARS));
-        setFileName(file.name);
-        setPasteText('');
+        acceptFile(await file.text(), file.name);
       }
     } catch {
       toast.error('Could not read that file.');
@@ -109,18 +126,15 @@ export default function AiGenerateModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source, userPrompt: instructions }),
       });
-      const data = (await res.json()) as {
-        error?: string;
-        questions?: {
-          type?: string;
-          category?: string;
-          prompt?: string;
-          answer?: string;
-          choices?: string[];
-        }[];
-      };
-      if (!res.ok || data.error || !data.questions) {
-        toast.error(data.error ?? 'AI generation failed. Try again.');
+      const raw = await res.text();
+      let data: GenerateResponse | null = null;
+      try {
+        data = JSON.parse(raw) as GenerateResponse;
+      } catch {
+        // e.g. a 502/504 HTML error page from the platform — show something useful
+      }
+      if (!res.ok || data?.error || !data?.questions) {
+        toast.error(data?.error ?? `AI generation failed (${res.status}). Try again.`);
         return;
       }
       const mapped: EditorQuestion[] = data.questions.map((q) => {
@@ -166,18 +180,26 @@ export default function AiGenerateModal({
               <Loader2 className="size-4 animate-spin" /> Reading file…
             </p>
           ) : fileName ? (
-            <div className="flex items-center justify-center gap-2 text-sm">
-              <span className="max-w-48 truncate font-medium">{fileName}</span>
-              <span className="text-muted-foreground">
-                {fileText.length.toLocaleString()} chars
-              </span>
-              <button
-                onClick={clearFile}
-                className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
-                aria-label="Remove file"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+            <div className="flex flex-col items-center gap-1 text-sm">
+              <div className="flex items-center justify-center gap-2">
+                <span className="max-w-48 truncate font-medium">{fileName}</span>
+                <span className="text-muted-foreground">
+                  {fileText.length.toLocaleString()} chars
+                </span>
+                <button
+                  onClick={clearFile}
+                  className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label="Remove file"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+              {fileFullLen > 0 && (
+                <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                  Long document — using the first {MAX_SOURCE_CHARS.toLocaleString()} of{' '}
+                  {fileFullLen.toLocaleString()} chars
+                </span>
+              )}
             </div>
           ) : (
             <>
@@ -211,7 +233,7 @@ export default function AiGenerateModal({
           disabled={!!fileName}
           onChange={(e) => setPasteText(e.target.value)}
           placeholder="Paste your notes, vocab list, or chapter text here…"
-          className="field-sizing-fixed h-32 resize-y"
+          className="h-36 field-sizing-fixed overflow-y-auto"
         />
 
         <div>
@@ -219,7 +241,7 @@ export default function AiGenerateModal({
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             placeholder="Optional: extra instructions for the AI — e.g. &quot;20 questions, mostly multiple choice, focus on chapter 3 terms&quot;"
-            className="field-sizing-fixed h-20 resize-y"
+            className="h-16 field-sizing-fixed overflow-y-auto"
           />
         </div>
 

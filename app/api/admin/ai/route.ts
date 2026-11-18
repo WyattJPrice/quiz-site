@@ -2,10 +2,26 @@ import { getAdminSession } from '@/lib/admin';
 import { AI_SYSTEM_PROMPT } from '@/lib/ai-prompt';
 
 export const dynamic = 'force-dynamic';
+// Vercel function lifetime cap — AI calls on free models can take a while.
+export const maxDuration = 300;
 
-const MAX_SOURCE_CHARS = 24000;
-const PRIMARY_MODEL = 'nvidia/nemotron-3.5-lightning:free';
-const FALLBACK_MODEL = 'baidu/ernie-5.5-flash-preview:free';
+const MAX_SOURCE_CHARS = 100000;
+const DEFAULT_QUESTION_COUNT = 15;
+const MAX_QUESTION_COUNT = 40;
+const MAX_TOKENS = 16000;
+const ATTEMPT_TIMEOUT_MS = 90000;
+const TOTAL_DEADLINE_MS = 270000;
+const RETRY_BACKOFF_MS = 3000;
+
+// All :free models (no credits needed), ordered fast-first. Every one supports
+// `response_format: json_object` so we always get strict JSON back.
+const MODEL_CHAIN = [
+  'baidu/ernie-5.5-flash-preview:free',
+  'particle-ai/particle-1:free',
+  'nvidia/nemotron-3.5-super-vl:free',
+];
+
+const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 interface AiQuestion {
   type?: string;
@@ -64,14 +80,43 @@ function validate(raw: unknown): { questions: AiQuestion[] } {
   return { questions };
 }
 
-async function callOpenRouter(model: string, source: string, userPrompt: string) {
+/** Pulls a question count out of the teacher's instructions ("12 questions"). */
+function extractQuestionCount(userPrompt: string): number | null {
+  const m = userPrompt.match(/\b(\d{1,3})\s*questions\b/i);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n > 0 && n <= MAX_QUESTION_COUNT ? n : null;
+}
+
+function isRetryable(err: unknown): boolean {
+  const status = (err as { status?: number })?.status;
+  if (status && RETRYABLE_STATUSES.has(status)) return true;
+  const msg = err instanceof Error ? err.message : '';
+  return /timeout|aborted/i.test(msg);
+}
+
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+async function callOpenRouter(
+  model: string,
+  source: string,
+  userPrompt: string,
+  questionCount: number
+) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY is not configured');
 
-  const userContent =
-    `Study material:\n"""\n${source}\n"""` +
-    (userPrompt ? `\n\nTeacher instructions: ${userPrompt}` : '');
+  let userContent = `Study material:\n"""\n${source}\n"""`;
+  const extras: string[] = [];
+  if (userPrompt) extras.push(`Teacher instructions: ${userPrompt}`);
+  if (!extractQuestionCount(userPrompt)) {
+    extras.push(`Generate ${questionCount} questions.`);
+  }
+  if (extras.length) userContent += `\n\n${extras.join('\n')}`;
 
+  const started = Date.now();
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -80,27 +125,39 @@ async function callOpenRouter(model: string, source: string, userPrompt: string)
     },
     body: JSON.stringify({
       model,
+      max_tokens: MAX_TOKENS,
+      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: AI_SYSTEM_PROMPT },
         { role: 'user', content: userContent },
       ],
     }),
-    signal: AbortSignal.timeout(120000),
+    signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    const err = new Error(`OpenRouter ${res.status}: ${detail.slice(0, 200)}`);
+    const err = new Error(`OpenRouter ${res.status}: ${detail.slice(0, 300)}`);
     (err as Error & { status?: number }).status = res.status;
     throw err;
   }
 
   const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { finish_reason?: string; message?: { content?: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from model');
-  return validate(extractJson(content));
+  const finish = data.choices?.[0]?.finish_reason;
+  const secs = Math.round((Date.now() - started) / 1000);
+  if (!content) {
+    console.error(`[ai] ${model} empty content after ${secs}s (finish: ${finish})`);
+    throw new Error('Empty response from model');
+  }
+  console.log(
+    `[ai] ${model} ok in ${secs}s (finish: ${finish}, ` +
+      `prompt: ${data.usage?.prompt_tokens ?? '?'} tok, completion: ${data.usage?.completion_tokens ?? '?'} tok)`
+  );
+  return { model, secs, ...validate(extractJson(content)) };
 }
 
 export async function POST(request: Request) {
@@ -128,25 +185,46 @@ export async function POST(request: Request) {
     );
   }
 
-  let result;
-  try {
-    result = await callOpenRouter(PRIMARY_MODEL, source, userPrompt);
-  } catch (err) {
-    console.error('AI primary model failed', err);
-    try {
-      result = await callOpenRouter(FALLBACK_MODEL, source, userPrompt);
-    } catch (err2) {
-      console.error('AI fallback model failed', err2);
-      const firstMsg = err instanceof Error ? err.message : '';
-      const detailMatch = firstMsg.match(/OpenRouter \d+: (.+)/);
-      const detail = detailMatch ? detailMatch[1] : '';
-      let msg = 'AI generation failed. Check your OpenRouter key/limits and try again.';
-      if (/OpenRouter (401|403)/.test(firstMsg)) msg = 'AI service rejected the API key.';
-      else if (/429/.test(firstMsg) || /429/.test(String(err2))) msg = 'AI rate limit hit — wait a moment and try again (free tier: ~50 requests/day).';
-      if (process.env.NODE_ENV !== 'production' && detail) msg += ` [${detail}]`;
-      return Response.json({ error: msg }, { status: 502 });
+  const questionCount = extractQuestionCount(userPrompt) ?? DEFAULT_QUESTION_COUNT;
+  const started = Date.now();
+  const attemptLog: string[] = [];
+  let lastErr: unknown;
+
+  // Walk the model chain; each model gets one retry when the failure looks
+  // transient (free-pool 429s are common and usually clear in seconds).
+  for (const model of MODEL_CHAIN) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      if (Date.now() - started > TOTAL_DEADLINE_MS - ATTEMPT_TIMEOUT_MS) break;
+      try {
+        const result = await callOpenRouter(model, source, userPrompt, questionCount);
+        console.log(`[ai] success via ${result.model} after ${Math.round((Date.now() - started) / 1000)}s total, ${result.questions.length} questions`);
+        return Response.json({
+          model: result.model,
+          questions: result.questions,
+        });
+      } catch (err) {
+        lastErr = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        attemptLog.push(`${model}#${attempt}: ${msg}`);
+        console.error(`[ai] attempt failed — ${model} #${attempt}: ${msg}`);
+        if (!isRetryable(err)) break;
+        if (attempt === 1) await sleep(RETRY_BACKOFF_MS);
+      }
     }
   }
 
-  return Response.json({ model: PRIMARY_MODEL, ...result });
+  const lastMsg = lastErr instanceof Error ? lastErr.message : String(lastErr ?? '');
+  let msg = 'AI generation failed. Check your OpenRouter key/limits and try again.';
+  if (/OpenRouter (401|403)/.test(lastMsg)) {
+    msg = 'AI service rejected the API key.';
+  } else if (/429/.test(lastMsg)) {
+    msg = 'AI rate limit hit — the free models are busy. Wait a minute and try again (free tier: ~50 requests/day).';
+  } else if (/timeout|aborted/i.test(lastMsg)) {
+    msg = 'AI generation timed out — the models are slow right now. Try again in a minute, or use a shorter source.';
+  }
+  // Include the raw upstream error so failures are diagnosable from the toast.
+  return Response.json(
+    { error: `${msg} [${lastMsg.slice(0, 300)}]`, attempts: attemptLog },
+    { status: 502 }
+  );
 }
