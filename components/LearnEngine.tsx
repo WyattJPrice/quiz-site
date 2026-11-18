@@ -505,7 +505,7 @@ export default function LearnEngine({ questions, slug }: Props) {
         <div className="mb-4 inline-block border border-primary/30 px-2.5 py-1 text-[10px] tracking-[0.14em] text-primary uppercase">
           {q.cat}
         </div>
-        <div className="mb-8 text-[21px] leading-normal font-semibold tracking-tight sm:text-[22px]">
+        <div className="mb-8 text-[21px] leading-normal font-semibold tracking-tight break-words sm:text-[22px]">
           {q.question.replace(/_{5,}/g, '_____')}
         </div>
 

@@ -536,7 +536,7 @@ export default function QuizEngine({
           {q.cat}
         </div>
         <div
-          className="mb-8 text-[21px] leading-normal font-semibold tracking-tight sm:text-[22px]"
+          className="mb-8 text-[21px] leading-normal font-semibold tracking-tight break-words sm:text-[22px]"
           dangerouslySetInnerHTML={{ __html: formatQ(q.question) }}
         />
         <div className="mb-2.5 text-[11px] tracking-[0.12em] text-muted-foreground uppercase">

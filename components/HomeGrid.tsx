@@ -150,7 +150,7 @@ export default function HomeGrid({
             </button>
           </span>
         )}
-        <div className={`text-[15px] leading-snug font-semibold ${isAdmin ? 'pr-14' : ''}`}>{q.title}</div>
+        <div className={`text-[15px] leading-snug font-semibold break-words ${isAdmin ? 'pr-14' : ''}`}>{q.title}</div>
         {testLabel && (
           <div className="mt-1 text-xs font-semibold text-primary">
             Test · {testLabel}
