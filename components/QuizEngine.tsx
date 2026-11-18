@@ -5,11 +5,50 @@ import { toast } from 'sonner';
 import { Check, X, SlidersHorizontal } from 'lucide-react';
 import type { Question } from '@/data/types';
 import { shuffle, normalize, isFuzzyMatch, getPermutations } from '@/lib/quiz';
+import {
+  loadQuizSession,
+  saveQuizSession,
+  clearQuizSession,
+  sanitizeQuizSession,
+  type QuizSession,
+} from '@/lib/quiz-session';
+import { pullSession, pushSession, dropSession } from '@/lib/session-sync';
 import { authClient, signInWithGoogle } from '@/lib/session';
 import { Button } from '@/components/ui/button';
 
 type BlankState = 'neutral' | 'correct' | 'wrong';
 type ChoiceResult = 'correct' | 'wrong' | undefined;
+
+/**
+ * Rebuilds a saved deck against the current question list. Returns null when the
+ * saved state no longer matches the set, so the round starts fresh.
+ */
+function restoreDeck(
+  saved: QuizSession,
+  filtered: Question[],
+  all: Question[]
+): { deck: Question[]; idx: number; correct: number; wrong: number } | null {
+  if (saved.total !== all.length) return null;
+
+  const allowed = new Set(filtered);
+  const seen = new Set<Question>();
+  const deck: Question[] = [];
+  for (const i of saved.order) {
+    const item = all[i];
+    if (!item || !allowed.has(item) || seen.has(item)) continue;
+    seen.add(item);
+    deck.push(item);
+  }
+  deck.push(...shuffle(filtered.filter((item) => !seen.has(item))));
+  if (deck.length === 0) return null;
+
+  return {
+    deck,
+    idx: Math.min(saved.idx, deck.length),
+    correct: Math.min(saved.correct, deck.length),
+    wrong: Math.min(saved.wrong, deck.length),
+  };
+}
 
 export default function QuizEngine({
   questions,
@@ -25,12 +64,23 @@ export default function QuizEngine({
   const [complete, setComplete] = useState(false);
   const [answered, setAnswered] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { data: session } = authClient.useSession();
+  // Saved-session hydration: local copy first, then the copy on the profile
+  const [syncReady, setSyncReady] = useState(false);
+  const pendingRestore = useRef<QuizSession | null>(null);
+  const restoreUsed = useRef(false);
+  const pulled = useRef(false);
+  const localSavedAt = useRef(0);
+  const builtDeck = useRef<Question[] | null>(null);
+  const { data: session, isPending: sessionPending } = authClient.useSession();
 
   // Fill-in-blank
   const [inputValues, setInputValues] = useState<string[]>([]);
   const [blankStates, setBlankStates] = useState<BlankState[]>([]);
   const [reveals, setReveals] = useState<boolean[]>([]);
+
+  // Index of the question whose answer is currently on screen, so leaving
+  // mid-feedback resumes on the next question instead of repeating it
+  const [answeredAt, setAnsweredAt] = useState<number | null>(null);
 
   // Multiple choice
   const [choicesOrder, setChoicesOrder] = useState<string[]>([]);
@@ -65,15 +115,32 @@ export default function QuizEngine({
     () => questions.filter((q) => selectedCats.has(q.cat)).length,
     [questions, selectedCats]
   );
+  const questionIndex = useMemo(() => {
+    const m = new Map<Question, number>();
+    questions.forEach((item, i) => m.set(item, i));
+    return m;
+  }, [questions]);
+
+  /** Saved category names that still exist, or every category. */
+  function sessionCats(saved: QuizSession | null): Set<string> {
+    const names = saved?.cats?.filter((c) => allCats.includes(c)) ?? [];
+    return new Set(names.length > 0 ? names : allCats);
+  }
 
   const q = deck[idx];
   const answers = q?.answer.split(',') ?? [];
   const isChoice = !!q?.choices;
   const isMulti = answers.length > 1;
 
-  // Initial mount — populate selectedCats (triggers deck effect below)
+  // Initial mount — resume this device's saved session (if any) and populate
+  // selectedCats, which triggers the deck effect below
   useEffect(() => {
-    setSelectedCats(new Set(questions.map((q) => q.cat)));
+    const saved = slug ? loadQuizSession(slug) : null;
+    if (saved && saved.total === questions.length) {
+      pendingRestore.current = saved;
+      localSavedAt.current = saved.updatedAt;
+    }
+    setSelectedCats(sessionCats(pendingRestore.current));
     setMounted(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -85,7 +152,38 @@ export default function QuizEngine({
     }
     const filtered = questions.filter((q) => selectedCats.has(q.cat));
     clearTimeout(advanceTimer.current);
-    setDeck(shuffle(filtered));
+
+    // Put the student back where they left off, if there is a saved session
+    if (pendingRestore.current && !restoreUsed.current) {
+      restoreUsed.current = true;
+      const saved = pendingRestore.current;
+      pendingRestore.current = null;
+      const restored = restoreDeck(saved, filtered, questions);
+      if (restored) {
+        builtDeck.current = restored.deck;
+        setDeck(restored.deck);
+        setScoreCorrect(restored.correct);
+        setScoreWrong(restored.wrong);
+        setAnswered(false);
+        setAnsweredAt(null);
+        setFeedbackType(null);
+        setFeedbackText('');
+        setCardClass('');
+        setNoticeVisible(false);
+        if (restored.idx >= restored.deck.length) {
+          setIdx(restored.deck.length - 1);
+          setComplete(true);
+        } else {
+          setIdx(restored.idx);
+          setComplete(false);
+        }
+        return;
+      }
+    }
+
+    const fresh = shuffle(filtered);
+    builtDeck.current = fresh;
+    setDeck(fresh);
     setIdx(0);
     setScoreCorrect(0);
     setScoreWrong(0);
@@ -102,6 +200,7 @@ export default function QuizEngine({
     if (!q) return;
     const ans = q.answer.split(',');
     setAnswered(false);
+    setAnsweredAt(null);
     setFeedbackType(null);
     setFeedbackText('');
     setCardClass('');
@@ -168,6 +267,94 @@ export default function QuizEngine({
     }
   }, [complete]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pull the session saved on the student's profile, so a round started on one
+  // device continues on another
+  useEffect(() => {
+    if (!mounted || pulled.current) return;
+    if (sessionPending) {
+      // Never leave the set blank if the session lookup stalls
+      const fallback = setTimeout(() => {
+        if (!pulled.current) {
+          pulled.current = true;
+          setSyncReady(true);
+        }
+      }, 3000);
+      return () => clearTimeout(fallback);
+    }
+    pulled.current = true;
+
+    if (!slug || !session?.user) {
+      setSyncReady(true);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    pullSession(slug, 'quiz', controller.signal)
+      .then((raw) => {
+        const remote = sanitizeQuizSession(raw);
+        if (!remote) return;
+        if (remote.total !== questions.length) return;
+        if (remote.updatedAt <= localSavedAt.current) return;
+        // Another device is further along — adopt it here too
+        saveQuizSession(slug, remote);
+        localSavedAt.current = remote.updatedAt;
+        pendingRestore.current = remote;
+        restoreUsed.current = false;
+        setSelectedCats(sessionCats(remote));
+      })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        setSyncReady(true);
+      });
+  }, [mounted, sessionPending, session, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist the current position on the device and on the profile
+  useEffect(() => {
+    if (!mounted || !syncReady || !slug) return;
+    if (complete || deck.length === 0 || selectedCats.size === 0) return;
+    // Only save once the deck in state is the one just built above
+    if (builtDeck.current !== deck) return;
+
+    const order = deck.map((item) => questionIndex.get(item));
+    if (order.some((i) => i === undefined)) return;
+
+    const state: QuizSession = {
+      order: order as number[],
+      idx: answeredAt === idx ? idx + 1 : idx,
+      correct: scoreCorrect,
+      wrong: scoreWrong,
+      cats: selectedCats.size >= allCats.length ? null : [...selectedCats],
+      total: questions.length,
+      updatedAt: Date.now(),
+    };
+    saveQuizSession(slug, state);
+    localSavedAt.current = state.updatedAt;
+    pushSession(slug, 'quiz', state);
+  }, [
+    mounted,
+    syncReady,
+    slug,
+    complete,
+    deck,
+    idx,
+    answeredAt,
+    scoreCorrect,
+    scoreWrong,
+    selectedCats,
+    allCats,
+    questionIndex,
+    questions.length,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A finished round has no position left to resume
+  useEffect(() => {
+    if (!complete || !slug) return;
+    clearQuizSession(slug);
+    dropSession(slug, 'quiz');
+  }, [complete, slug]);
+
   // Keep a ref to the latest state + functions so the Enter handler never goes stale
   const stateRef = useRef({ answered: false, isChoice: false, isMulti: false });
   stateRef.current = { answered, isChoice, isMulti };
@@ -206,6 +393,7 @@ export default function QuizEngine({
   function handleChoiceClick(choice: string) {
     if (answered) return;
     recordAnswer();
+    setAnsweredAt(idx);
     const isCorrect = normalize(choice) === normalize(q.answer);
 
     const newResults: Record<string, ChoiceResult> = {};
@@ -234,6 +422,7 @@ export default function QuizEngine({
     if (answered) { nextQuestion(); return; }
     if (isChoice) return;
     recordAnswer();
+    setAnsweredAt(idx);
 
     const userVals = answers.map((_, i) => inputValues[i] ?? '');
     let allCorrect = true;
@@ -348,7 +537,9 @@ export default function QuizEngine({
     clearTimeout(advanceTimer.current);
     clearTimeout(toastTimer.current);
     const filtered = questions.filter((q) => selectedCats.has(q.cat));
-    setDeck(shuffle(filtered.length > 0 ? filtered : questions));
+    const fresh = shuffle(filtered.length > 0 ? filtered : questions);
+    builtDeck.current = fresh;
+    setDeck(fresh);
     setIdx(0);
     setScoreCorrect(0);
     setScoreWrong(0);
@@ -439,7 +630,7 @@ export default function QuizEngine({
     </div>
   );
 
-  if (!mounted) return null;
+  if (!mounted || !syncReady) return null;
 
   // No categories selected
   if (deck.length === 0) {
