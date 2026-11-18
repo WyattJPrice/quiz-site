@@ -6,7 +6,15 @@ import { Check, X, SlidersHorizontal } from 'lucide-react';
 import type { Question } from '@/data/types';
 import { shuffle, normalize, isFuzzyMatch, getPermutations } from '@/lib/quiz';
 import { generateChoices, getCorrectAnswer } from '@/lib/learn-algorithm';
-import { loadProgress, saveProgress, resetProgress, addKnownIndex, getKnownIndices } from '@/lib/learn-storage';
+import {
+  loadProgress,
+  saveProgress,
+  resetProgress,
+  addKnownIndex,
+  getKnownIndices,
+  sanitizeLearnSession,
+} from '@/lib/learn-storage';
+import { pullSession, pushSession, dropSession } from '@/lib/session-sync';
 import type { LearnSessionState } from '@/lib/learn-types';
 import { authClient, signInWithGoogle } from '@/lib/session';
 import { Button } from '@/components/ui/button';
@@ -35,7 +43,12 @@ export default function LearnEngine({ questions, slug }: Props) {
   // Filter sidebar
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { data: authSession } = authClient.useSession();
+  const { data: authSession, isPending: sessionPending } = authClient.useSession();
+
+  // Saved-session hydration: local copy first, then the copy on the profile
+  const [syncReady, setSyncReady] = useState(false);
+  const pulled = useRef(false);
+  const localSavedAt = useRef(0);
 
   const allCats = useMemo(
     () => Array.from(new Set(questions.map((q) => q.cat))),
@@ -73,6 +86,23 @@ export default function LearnEngine({ questions, slug }: Props) {
     };
   }
 
+  /** Saves to this device and, when signed in, to the student's profile. */
+  function persist(state: LearnSessionState): void {
+    const stamped = { ...state, updatedAt: Date.now() };
+    saveProgress(stamped);
+    localSavedAt.current = stamped.updatedAt ?? 0;
+    if (authSession?.user) pushSession(slug, 'learn', stamped);
+  }
+
+  /** Adopts a round saved on the profile (another device is further along). */
+  function applySaved(state: LearnSessionState): void {
+    setSession(state);
+    saveProgress(state);
+    localSavedAt.current = state.updatedAt ?? 0;
+    loadQuestion(state);
+    setComplete(false);
+  }
+
   // Initial mount — populate selectedCats (triggers session effect below)
   useEffect(() => {
     setSelectedCats(new Set(questions.map((q) => q.cat)));
@@ -91,22 +121,63 @@ export default function LearnEngine({ questions, slug }: Props) {
 
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      const existing = loadProgress(slug);
-      const isValid =
-        existing &&
-        Array.isArray(existing.remaining) &&
-        Array.isArray(existing.wrongPile) &&
-        existing.remaining.length + existing.wrongPile.length <= questions.length;
-      state = isValid ? existing! : makeFreshSession(selectedCats);
+      const existing = sanitizeLearnSession(loadProgress(slug), slug, questions.length);
+      if (existing) {
+        // Resume the local round without re-stamping it, so a newer copy from
+        // another device still wins when the profile is pulled below
+        state = existing;
+        saveProgress(state);
+        localSavedAt.current = state.updatedAt ?? 0;
+      } else {
+        state = makeFreshSession(selectedCats);
+        saveProgress(state);
+      }
     } else {
       state = makeFreshSession(selectedCats);
+      persist(state);
     }
 
     setSession(state);
-    saveProgress(state);
     loadQuestion(state);
     setComplete(false);
   }, [selectedCats]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pull the round saved on the student's profile, so a session started on one
+  // device continues on another
+  useEffect(() => {
+    if (!mounted || pulled.current) return;
+    if (sessionPending) {
+      // Never leave the set blank if the session lookup stalls
+      const fallback = setTimeout(() => {
+        if (!pulled.current) {
+          pulled.current = true;
+          setSyncReady(true);
+        }
+      }, 3000);
+      return () => clearTimeout(fallback);
+    }
+    pulled.current = true;
+
+    if (!authSession?.user) {
+      setSyncReady(true);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    pullSession(slug, 'learn', controller.signal)
+      .then((raw) => {
+        const remote = sanitizeLearnSession(raw, slug, questions.length);
+        if (!remote) return;
+        if ((remote.updatedAt ?? 0) <= localSavedAt.current) return;
+        applySaved(remote);
+      })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        setSyncReady(true);
+      });
+  }, [mounted, sessionPending, authSession, slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (pendingAdvance) {
@@ -177,7 +248,7 @@ export default function LearnEngine({ questions, slug }: Props) {
       updated.wrongPile = [...updated.wrongPile, qIdx];
     }
     setSession(updated);
-    saveProgress(updated);
+    persist(updated);
     if (authSession?.user) {
       try {
         fetch('/api/progress', {
@@ -299,6 +370,8 @@ export default function LearnEngine({ questions, slug }: Props) {
       if (session.wrongPile.length === 0) {
         setComplete(true);
         resetProgress(slug);
+        dropSession(slug, 'learn');
+        localSavedAt.current = 0;
         return;
       }
       const newSession: LearnSessionState = {
@@ -309,14 +382,14 @@ export default function LearnEngine({ questions, slug }: Props) {
         round: session.round + 1,
       };
       setSession(newSession);
-      saveProgress(newSession);
+      persist(newSession);
       loadQuestion(newSession);
       return;
     }
 
     const updated = { ...session, currentIdx: nextIdx };
     setSession(updated);
-    saveProgress(updated);
+    persist(updated);
     loadQuestion(updated);
   }
 
@@ -324,7 +397,7 @@ export default function LearnEngine({ questions, slug }: Props) {
     resetProgress(slug);
     const fresh = makeFreshSession(selectedCats);
     setSession(fresh);
-    saveProgress(fresh);
+    persist(fresh);
     loadQuestion(fresh);
     setComplete(false);
   }
@@ -338,7 +411,7 @@ export default function LearnEngine({ questions, slug }: Props) {
     });
   }
 
-  if (!mounted) return null;
+  if (!mounted || !syncReady) return null;
 
   // ── Sidebar ──────────────────────────────────────────────────────
   const sidebar = (
