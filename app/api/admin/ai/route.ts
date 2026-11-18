@@ -80,10 +80,13 @@ function validate(raw: unknown): { questions: AiQuestion[] } {
   return { questions };
 }
 
-/** Pulls a question count out of the teacher's instructions ("56 questions").
+/** Pulls a question count out of the teacher's instructions. Matches "56
+ *  questions", "56 multiple choice questions", "56 MC questions", etc.
  *  Returns the raw number (may exceed the cap) or null when unspecified. */
 function extractQuestionCount(userPrompt: string): number | null {
-  const m = userPrompt.match(/\b(\d{1,3})\s*questions?\b/i);
+  const m = userPrompt.match(
+    /\b(\d{1,3})\s*(?:multiple[\s-]?choice|mcq?|written|fill[\s-]?blank)?\s*questions?\b/i
+  );
   if (!m) return null;
   const n = parseInt(m[1], 10);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -189,11 +192,13 @@ export async function POST(request: Request) {
   }
 
   const statedCount = extractQuestionCount(userPrompt);
-  // Honor the teacher's count when it's within range; otherwise clamp very
-  // large/odd requests to the cap so the model still gets a clear number.
+  // Honor the teacher's count when it's within range; clamp very large/odd
+  // requests to the cap so the model still gets a clear number.
   const questionCount = statedCount
     ? Math.min(statedCount, MAX_QUESTION_COUNT)
     : DEFAULT_QUESTION_COUNT;
+  // Append our own count only when the teacher gave none at all, or stated one
+  // beyond the cap — never when their instructions are otherwise usable.
   const appendCount = statedCount === null || statedCount > MAX_QUESTION_COUNT;
   const started = Date.now();
   const attemptLog: string[] = [];
