@@ -312,6 +312,7 @@ export default function LearnEngine({ questions, slug }: Props) {
 
     const newStates: ('neutral' | 'correct' | 'wrong')[] = [];
     const newReveals: boolean[] = [];
+    const fuzzyParts: { wrote: string; correct: string }[] = [];
     let allCorrect = true;
 
     answers.forEach((ans, i) => {
@@ -319,6 +320,9 @@ export default function LearnEngine({ questions, slug }: Props) {
       const exact = opts.map((o) => normalize(o)).includes(normalize(userVals[i]));
       const fuzzy = !exact && isFuzzyMatch(userVals[i], opts);
       const right = exact || fuzzy || swapped;
+      if (fuzzy && !swapped) {
+        fuzzyParts.push({ wrote: userVals[i], correct: opts[0] });
+      }
       newStates.push(right ? 'correct' : 'wrong');
       newReveals.push(!right);
       if (!right) allCorrect = false;
@@ -335,6 +339,17 @@ export default function LearnEngine({ questions, slug }: Props) {
     markAnswer(allCorrect);
 
     if (allCorrect) {
+      if (fuzzyParts.length > 0) {
+        toast.success('Close enough — marked correct', {
+          description: fuzzyParts.map((part) => (
+            <span key={part.wrote} className="block">
+              You wrote <strong>“{part.wrote}”</strong> — the correct spelling is{' '}
+              <strong>“{part.correct}”</strong>
+            </span>
+          )),
+          duration: 3000,
+        });
+      }
       setTimeout(() => setPendingAdvance(true), 900);
     }
   }
@@ -676,6 +691,7 @@ export default function LearnEngine({ questions, slug }: Props) {
           </div>
         )}
       </div>
+
     </>
   );
 }

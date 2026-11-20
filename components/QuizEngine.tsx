@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Check, X, SlidersHorizontal } from 'lucide-react';
 import type { Question } from '@/data/types';
@@ -93,15 +93,10 @@ export default function QuizEngine({
   const [feedbackText, setFeedbackText] = useState('');
   const [cardClass, setCardClass] = useState('');
 
-  // Fuzzy-match notice
-  const [noticeVisible, setNoticeVisible] = useState(false);
-  const [noticeMsg, setNoticeMsg] = useState('');
-
   // Filter sidebar
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const allCats = useMemo(
@@ -172,7 +167,6 @@ export default function QuizEngine({
         setFeedbackType(null);
         setFeedbackText('');
         setCardClass('');
-        setNoticeVisible(false);
         if (restored.idx >= restored.deck.length) {
           setIdx(restored.deck.length - 1);
           setComplete(true);
@@ -195,7 +189,6 @@ export default function QuizEngine({
     setFeedbackType(null);
     setFeedbackText('');
     setCardClass('');
-    setNoticeVisible(false);
   }, [selectedCats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset per-question state when question changes
@@ -231,7 +224,6 @@ export default function QuizEngine({
   // Cleanup timers on unmount
   useEffect(
     () => () => {
-      clearTimeout(toastTimer.current);
       clearTimeout(advanceTimer.current);
     },
     []
@@ -367,11 +359,8 @@ export default function QuizEngine({
     nextQuestion: () => {},
   });
 
-  function showNotice(msg: string) {
-    clearTimeout(toastTimer.current);
-    setNoticeMsg(msg);
-    setNoticeVisible(true);
-    toastTimer.current = setTimeout(() => setNoticeVisible(false), 4000);
+  function showNotice(description: ReactNode) {
+    toast.success('Close enough — marked correct', { description, duration: 4500 });
   }
 
   function nextQuestion() {
@@ -417,7 +406,7 @@ export default function QuizEngine({
 
     const userVals = answers.map((_, i) => inputValues[i] ?? '');
     let allCorrect = true;
-    const fuzzyMsgs: string[] = [];
+    const fuzzyParts: { wrote: string; correct: string }[] = [];
     let swapped = false;
 
     if (answers.length > 1) {
@@ -445,22 +434,25 @@ export default function QuizEngine({
       const right = exact || fuzzy || swapped;
 
       if (fuzzy && !swapped) {
-        fuzzyMsgs.push(
-          `You wrote <strong>"${userVals[i]}"</strong> — the answer is <strong>"${opts[0]}"</strong>`
-        );
+        fuzzyParts.push({ wrote: userVals[i], correct: opts[0] });
       }
       newBlank.push(right ? 'correct' : 'wrong');
       newReveals.push(!right);
       if (!right) allCorrect = false;
     });
 
+    let notice: ReactNode = null;
     if (swapped && answers.length > 1) {
-      fuzzyMsgs.length = 0;
-      fuzzyMsgs.push(
-        `Answers in wrong order — correct order is ${answers
-          .map((a) => `<strong>"${a.split('/')[0]}"</strong>`)
-          .join(' and ')}`
-      );
+      notice = `Answers in the wrong order — the correct order is ${answers
+        .map((a) => `"${a.split('/')[0]}"`)
+        .join(' and ')}`;
+    } else if (fuzzyParts.length > 0) {
+      notice = fuzzyParts.map((part) => (
+        <span key={part.wrote} className="block">
+          You wrote <strong>“{part.wrote}”</strong> — the correct spelling is{' '}
+          <strong>“{part.correct}”</strong>
+        </span>
+      ));
     }
 
     setBlankStates(newBlank);
@@ -471,9 +463,9 @@ export default function QuizEngine({
       setScoreCorrect((s) => s + 1);
       setCardClass('correct-state pop');
       setFeedbackType('correct');
-      setFeedbackText(fuzzyMsgs.length ? 'Close enough — marked correct!' : 'Correct!');
-      if (fuzzyMsgs.length) showNotice(fuzzyMsgs.join('<br>'));
-      advanceTimer.current = setTimeout(nextQuestion, fuzzyMsgs.length ? 1400 : 900);
+      setFeedbackText(notice ? 'Close enough — marked correct!' : 'Correct!');
+      if (notice) showNotice(notice);
+      advanceTimer.current = setTimeout(nextQuestion, notice ? 1400 : 900);
     } else {
       setScoreWrong((s) => s + 1);
       setCardClass('wrong-state shake');
@@ -526,7 +518,6 @@ export default function QuizEngine({
 
   function restart() {
     clearTimeout(advanceTimer.current);
-    clearTimeout(toastTimer.current);
     const filtered = questions.filter((q) => selectedCats.has(q.cat));
     const fresh = shuffle(filtered.length > 0 ? filtered : questions);
     builtDeck.current = fresh;
@@ -535,7 +526,6 @@ export default function QuizEngine({
     setScoreCorrect(0);
     setScoreWrong(0);
     setComplete(false);
-    setNoticeVisible(false);
   }
 
   const progress = deck.length > 0 ? (idx / deck.length) * 100 : 0;
@@ -823,29 +813,6 @@ export default function QuizEngine({
         </div>
       </div>
 
-      {noticeVisible && (
-        <div className="fixed bottom-8 left-1/2 z-50 flex w-[calc(100%-40px)] max-w-sm -translate-x-1/2 gap-3 border border-primary/30 bg-card px-5 py-4 shadow-lg">
-          <div className="flex-1">
-            <div className="mb-1 text-[13px] font-bold tracking-[0.06em] text-primary uppercase">
-              Close enough — marked correct
-            </div>
-            <div
-              className="text-[13px] leading-relaxed text-muted-foreground [&_strong]:font-medium [&_strong]:text-foreground"
-              dangerouslySetInnerHTML={{ __html: noticeMsg }}
-            />
-          </div>
-          <button
-            className="flex-shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              clearTimeout(toastTimer.current);
-              setNoticeVisible(false);
-            }}
-            aria-label="Dismiss"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-      )}
     </>
   );
 }
