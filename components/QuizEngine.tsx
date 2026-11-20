@@ -14,6 +14,8 @@ import {
 } from '@/lib/quiz-session';
 import { pullSession, pushSession, dropSession } from '@/lib/session-sync';
 import { authClient, signInWithGoogle } from '@/lib/session';
+import { getTrendSymbols } from '@/lib/periodic-table';
+import PeriodicTableMini from '@/components/PeriodicTableMini';
 import { Button } from '@/components/ui/button';
 
 type BlankState = 'neutral' | 'correct' | 'wrong';
@@ -131,6 +133,7 @@ export default function QuizEngine({
   const answers = q?.answer.split(',') ?? [];
   const isChoice = !!q?.choices;
   const isMulti = answers.length > 1;
+  const trendSymbols = getTrendSymbols(q?.choices);
 
   // Initial mount — resume this device's saved session (if any) and populate
   // selectedCats, which triggers the deck effect below
@@ -718,6 +721,7 @@ export default function QuizEngine({
           className="mb-8 text-[21px] leading-normal font-semibold tracking-tight break-words sm:text-[22px]"
           dangerouslySetInnerHTML={{ __html: formatQ(q.question) }}
         />
+        {trendSymbols && <PeriodicTableMini symbols={trendSymbols} />}
         <div className="mb-2.5 text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
           {isChoice
             ? 'Choose one:'

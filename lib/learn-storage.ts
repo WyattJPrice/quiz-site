@@ -69,15 +69,34 @@ export function sanitizeLearnSession(
   };
   const round = Math.floor(Number(s.round));
   const updatedAt = Math.floor(Number(s.updatedAt));
+  const roundNumber = Number.isInteger(round) && round > 0 ? round : 1;
+
+  const categories = Array.isArray(s.categories)
+    ? Array.from(
+        new Set(s.categories.filter((cat): cat is string => typeof cat === 'string' && cat.length > 0))
+      )
+    : [];
+
+  // Older saves predate totalQuestions. In round 1 `remaining` is still the
+  // full filtered set, so its length is the studied count.
+  const savedTotal = Math.floor(Number(s.totalQuestions));
+  const totalQuestions =
+    Number.isInteger(savedTotal) && savedTotal >= remaining.length
+      ? savedTotal
+      : roundNumber === 1
+        ? remaining.length
+        : undefined;
 
   return {
     slug,
     remaining,
     wrongPile,
     currentIdx,
-    round: Number.isInteger(round) && round > 0 ? round : 1,
+    round: roundNumber,
     totalCorrect: count(s.totalCorrect),
     totalWrong: count(s.totalWrong),
+    ...(categories.length > 0 ? { categories } : {}),
+    ...(totalQuestions !== undefined ? { totalQuestions } : {}),
     updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : 0,
   };
 }

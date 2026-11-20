@@ -17,6 +17,8 @@ import {
 import { pullSession, pushSession, dropSession } from '@/lib/session-sync';
 import type { LearnSessionState } from '@/lib/learn-types';
 import { authClient, signInWithGoogle } from '@/lib/session';
+import { getTrendSymbols } from '@/lib/periodic-table';
+import PeriodicTableMini from '@/components/PeriodicTableMini';
 import { Button } from '@/components/ui/button';
 
 interface Props {
@@ -75,14 +77,17 @@ export default function LearnEngine({ questions, slug }: Props) {
   }
 
   function makeFreshSession(cats: Set<string>): LearnSessionState {
+    const indices = filteredIndices(cats);
     return {
       slug,
-      remaining: shuffle(filteredIndices(cats)),
+      remaining: shuffle(indices),
       wrongPile: [],
       currentIdx: 0,
       round: 1,
       totalCorrect: 0,
       totalWrong: 0,
+      categories: [...cats],
+      totalQuestions: indices.length,
     };
   }
 
@@ -103,9 +108,13 @@ export default function LearnEngine({ questions, slug }: Props) {
     setComplete(false);
   }
 
-  // Initial mount — populate selectedCats (triggers session effect below)
+  // Initial mount — restore the saved round's categories when we have them, so
+  // the filter matches the questions actually being studied (triggers the
+  // session effect below)
   useEffect(() => {
-    setSelectedCats(new Set(questions.map((q) => q.cat)));
+    const saved = sanitizeLearnSession(loadProgress(slug), slug, questions.length);
+    const savedCats = saved?.categories?.filter((cat) => allCats.includes(cat));
+    setSelectedCats(new Set(savedCats && savedCats.length > 0 ? savedCats : allCats));
     setMounted(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -505,7 +514,7 @@ export default function LearnEngine({ questions, slug }: Props) {
           <div className="mt-9 mb-9 flex justify-center gap-10">
             <div>
               <span className="block text-4xl font-medium tabular-nums text-correct">
-                {filteredCount}
+                {session.totalQuestions ?? filteredCount}
               </span>
               <span className="text-xs tracking-[0.1em] text-muted-foreground uppercase">Questions</span>
             </div>
@@ -529,6 +538,7 @@ export default function LearnEngine({ questions, slug }: Props) {
   if (qIdx === undefined) return null;
   const q = questions[qIdx];
   const isChoice = !!q.choices;
+  const trendSymbols = getTrendSymbols(q.choices);
   const progressPct = (session.currentIdx / session.remaining.length) * 100;
 
   return (
@@ -569,6 +579,8 @@ export default function LearnEngine({ questions, slug }: Props) {
         <div className="mb-8 text-[21px] leading-normal font-semibold tracking-tight break-words sm:text-[22px]">
           {q.question.replace(/_{5,}/g, '_____')}
         </div>
+
+        {trendSymbols && <PeriodicTableMini symbols={trendSymbols} />}
 
         {isChoice ? (
           <>
