@@ -8,6 +8,7 @@ import {
   ensureGames,
   ensureWorker,
   hasGames,
+  isCurrentGames,
   setArchiveOffline,
 } from '@/lib/offline-games';
 import { isOffline } from '@/lib/offline-status';
@@ -53,34 +54,47 @@ export default function OfflineGames() {
 
   const prepare = useCallback(async () => {
     if (busyRef.current) return;
-    if (await hasGames()) {
-      toast.success('Offline content ready', { duration: 1200 });
-      return;
-    }
     busyRef.current = true;
 
     const id = 'offline-prep';
     let lastShown = 0;
-    toast.loading('Preparing offline content…', { id, duration: Infinity });
 
     try {
-      await ensureGames((progress) => {
-        const now = Date.now();
-        if (now - lastShown < 250) return;
-        lastShown = now;
-        const message =
-          progress.phase === 'download'
-            ? `Downloading… ${
-                progress.total
-                  ? `${Math.round((progress.loaded / progress.total) * 100)}%`
-                  : `${Math.round(progress.loaded / 1048576)} MB`
-              }`
-            : `Preparing… ${progress.files} files`;
-        toast.loading(message, { id, duration: Infinity });
-      });
-      toast.success('Offline content ready', { id, duration: 1800 });
-    } catch {
-      toast.error('Could not prepare offline content', { id, duration: 2500 });
+      if (await isCurrentGames()) {
+        toast.success('Offline content ready', { duration: 1200 });
+        return;
+      }
+
+      const hadArchive = await hasGames();
+      toast.loading(
+        hadArchive ? 'Updating offline content…' : 'Preparing offline content…',
+        { id, duration: Infinity }
+      );
+
+      try {
+        await ensureGames((progress) => {
+          const now = Date.now();
+          if (now - lastShown < 250) return;
+          lastShown = now;
+          const message =
+            progress.phase === 'download'
+              ? `Downloading… ${
+                  progress.total
+                    ? `${Math.round((progress.loaded / progress.total) * 100)}%`
+                    : `${Math.round(progress.loaded / 1048576)} MB`
+                }`
+              : `Preparing… ${progress.files} files`;
+          toast.loading(message, { id, duration: Infinity });
+        });
+        toast.success('Offline content ready', { id, duration: 1800 });
+      } catch {
+        toast.error(
+          hadArchive
+            ? 'Reconnect to update offline content'
+            : 'Could not prepare offline content',
+          { id, duration: 2500 }
+        );
+      }
     } finally {
       busyRef.current = false;
     }

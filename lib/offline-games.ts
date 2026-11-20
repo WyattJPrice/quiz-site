@@ -5,7 +5,7 @@ import { Unzip, UnzipInflate, type UnzipFile } from 'fflate';
  *
  * The archive is fetched from a deliberately boring static path, expanded in
  * the page, and written into the Cache API under a virtual prefix. A tiny
- * service worker (public/sw.js) serves that prefix only while the device is
+ * service worker (public/v/sw.js) serves that prefix only while the device is
  * offline, so the files are unreachable while online and the real URL never
  * changes.
  */
@@ -13,6 +13,8 @@ import { Unzip, UnzipInflate, type UnzipFile } from 'fflate';
 const ZIP_PATH = '/a/2b7d3f9c.zip';
 const CACHE_NAME = 'study-offline-v1';
 const PREFIX = '/v/d/';
+const ARCHIVE_VERSION = 'cookieclicker-2.058';
+const VERSION_FILE = 'Version1/archive-version.txt';
 
 /** Virtual entry point for the extracted launcher. */
 export const GAMES_ENTRY = `${PREFIX}Version1/index.html`;
@@ -92,6 +94,19 @@ export async function hasGames(): Promise<boolean> {
   try {
     const cache = await caches.open(CACHE_NAME);
     return !!(await cache.match(cacheKey('Version1/index.html')));
+  } catch {
+    return false;
+  }
+}
+
+/** True when the cached archive matches the version this build expects. */
+export async function isCurrentGames(): Promise<boolean> {
+  if (typeof caches === 'undefined') return false;
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const response = await cache.match(cacheKey(VERSION_FILE));
+    if (!response) return false;
+    return (await response.text()).trim() === ARCHIVE_VERSION;
   } catch {
     return false;
   }
@@ -190,14 +205,10 @@ async function run(onProgress?: (progress: GamesProgress) => void): Promise<void
 
   await ensureWorker();
 
-  if (await hasGames()) {
+  if (await isCurrentGames()) {
     onProgress?.({ phase: 'extract', loaded: 0, total: 0, files: 0 });
     return;
   }
-
-  // Drop any partial previous attempt before starting over.
-  await caches.delete(CACHE_NAME);
-  const cache = await caches.open(CACHE_NAME);
 
   const response = await fetch(ZIP_PATH, {
     cache: 'no-store',
@@ -206,6 +217,12 @@ async function run(onProgress?: (progress: GamesProgress) => void): Promise<void
   if (!response.ok || !response.body) {
     throw new Error(`Archive unavailable (${response.status})`);
   }
+
+  // Replace the old archive only after the new download is available. An
+  // offline or failed attempt must leave an older playable cache untouched.
+  await caches.delete(CACHE_NAME);
+  const cache = await caches.open(CACHE_NAME);
+
   const total = Number(response.headers.get('content-length') ?? 0) || 0;
 
   let writeError: unknown = null;
@@ -291,8 +308,8 @@ async function run(onProgress?: (progress: GamesProgress) => void): Promise<void
   await writeChain;
   if (writeError) throw writeError;
 
-  if (!(await hasGames())) {
-    throw new Error('Archive did not contain a complete game set');
+  if (!(await isCurrentGames())) {
+    throw new Error('Archive did not contain the expected game set');
   }
 
   try {
