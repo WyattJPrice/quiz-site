@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Plus, User } from 'lucide-react';
@@ -41,6 +42,42 @@ const iconBtn =
 
 const ADMIN_EMAILS = ['wyattprice09ono@gmail.com', '28wprice@ndpios.com'];
 
+function InitialAvatar({ name }: { name: string | null | undefined }) {
+  return (
+    <span className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+      {getFirstName(name)[0].toUpperCase()}
+    </span>
+  );
+}
+
+/**
+ * Google's avatar CDN (lh3.googleusercontent.com) throttles requests that carry
+ * a third-party Referer, which showed up as intermittent 403/429s and a broken
+ * image. Sending no referrer avoids that, and a failed load falls back to the
+ * initials circle instead of an empty box.
+ */
+function ProfileAvatar({
+  src,
+  name,
+}: {
+  src: string;
+  name: string | null | undefined;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <InitialAvatar name={name} />;
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src={src}
+      alt=""
+      referrerPolicy="no-referrer"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className="size-7 rounded-full border border-border object-cover"
+    />
+  );
+}
+
 export default function Navbar() {
   const { data: session } = authClient.useSession();
   const router = useRouter();
@@ -74,17 +111,12 @@ export default function Navbar() {
 
           <DropdownMenu>
             <DropdownMenuTrigger render={<button className={iconBtn} aria-label="Account" />}>
-              {user?.image ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={user.image}
-                  alt=""
-                  className="size-7 rounded-full border border-border object-cover"
-                />
-              ) : user ? (
-                <span className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                  {getFirstName(user.name)[0].toUpperCase()}
-                </span>
+              {user ? (
+                user.image ? (
+                  <ProfileAvatar key={user.image} src={user.image} name={user.name} />
+                ) : (
+                  <InitialAvatar name={user.name} />
+                )
               ) : (
                 <User className="size-5" strokeWidth={2} />
               )}
