@@ -190,7 +190,7 @@ export default function LearnEngine({ questions, slug }: Props) {
   useEffect(() => {
     if (!complete) return;
     const signedIn = !!authSession?.user;
-    if (session) {
+    if (signedIn && session) {
       if (session.totalCorrect + session.totalWrong > 0) {
         try {
           fetch('/api/progress', {
@@ -208,7 +208,7 @@ export default function LearnEngine({ questions, slug }: Props) {
       }
     }
     if (!signedIn) {
-      toast('Sign in to save your progress and appear on the leaderboard.', {
+      toast('Sign in to save your progress across devices.', {
         position:
           window.innerWidth >= 640 ? 'bottom-right' : 'bottom-center',
         action: {
@@ -249,18 +249,6 @@ export default function LearnEngine({ questions, slug }: Props) {
     }
     setSession(updated);
     persist(updated);
-    if (authSession?.user) {
-      try {
-        fetch('/api/progress', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ answered: 1 }),
-          keepalive: true,
-        }).catch(() => {});
-      } catch {
-        // ignore
-      }
-    }
   }
 
   function handleChoice(choice: string) {

@@ -19,9 +19,8 @@ export default function PrivacyPage() {
               create your account when you sign in with Google.
             </li>
             <li>
-              Your <strong>study activity</strong>: questions answered, best quiz scores, and
-              questions you have marked as known. This powers your progress sync and the class
-              leaderboard (first name and questions-answered count only).
+              Your <strong>study activity</strong>: best quiz scores and questions you have marked
+              as known. This powers your progress sync across devices.
             </li>
           </ul>
         </section>
@@ -29,9 +28,8 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-lg font-semibold">How we use it</h2>
           <p className="mt-3">
-            Your data is used only to operate this study site: keeping you signed in, saving your
-            progress across devices, and showing the leaderboard. We never sell or share your
-            personal information.
+            Your data is used only to operate this study site: keeping you signed in and saving
+            your progress across devices. We never sell or share your personal information.
           </p>
         </section>
 

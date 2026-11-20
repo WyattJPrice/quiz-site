@@ -1,12 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Plus, User } from 'lucide-react';
 import { toast } from 'sonner';
 import ThemeToggle from '@/components/ThemeToggle';
-import LeaderboardModal from '@/components/LeaderboardModal';
 import { authClient, getFirstName, signInWithGoogle } from '@/lib/session';
 import {
   DropdownMenu,
@@ -14,28 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-/* Exact trophy icon + sizing from Connections */
-function TrophyIcon({ width = 20, height = 20 }: { width?: number; height?: number }) {
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M8 21h8" />
-      <path d="M12 17v4" />
-      <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
-      <path d="M17 4h3v3a3 3 0 0 1-3 3" />
-      <path d="M7 4H4v3a3 3 0 0 0 3 3" />
-    </svg>
-  );
-}
 
 function GoogleIcon() {
   return (
@@ -66,7 +42,6 @@ const iconBtn =
 const ADMIN_EMAILS = ['wyattprice09ono@gmail.com', '28wprice@ndpios.com'];
 
 export default function Navbar() {
-  const [lbOpen, setLbOpen] = useState(false);
   const { data: session } = authClient.useSession();
   const router = useRouter();
   const user = session?.user;
@@ -82,87 +57,75 @@ export default function Navbar() {
   }
 
   return (
-    <>
-      <nav className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-6">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            Study<span className="text-primary">.</span>
-          </Link>
+    <nav className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
+      <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-6">
+        <Link href="/" className="text-lg font-bold tracking-tight">
+          Study<span className="text-primary">.</span>
+        </Link>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setLbOpen(true)}
-              className={iconBtn}
-              aria-label="Leaderboard"
-            >
-              <TrophyIcon />
-            </button>
+        <div className="flex items-center gap-1">
+          {isAdmin && (
+            <Link href="/create" className={iconBtn} aria-label="Create a set">
+              <Plus className="size-5" />
+            </Link>
+          )}
 
-            {isAdmin && (
-              <Link href="/create" className={iconBtn} aria-label="Create a set">
-                <Plus className="size-5" />
-              </Link>
-            )}
+          <ThemeToggle />
 
-            <ThemeToggle />
-
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<button className={iconBtn} aria-label="Account" />}>
-                {user?.image ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={user.image}
-                    alt=""
-                    className="size-7 rounded-full border border-border object-cover"
-                  />
-                ) : user ? (
-                  <span className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                    {getFirstName(user.name)[0].toUpperCase()}
-                  </span>
-                ) : (
-                  <User className="size-5" strokeWidth={2} />
-                )}
-              </DropdownMenuTrigger>
-              {user ? (
-                <DropdownMenuContent align="end" className="w-64 p-0">
-                  <div className="px-4 pt-3.5 pb-3">
-                    <p className="truncate text-sm font-semibold">
-                      {getFirstName(user.name)}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {user.email}
-                    </p>
-                  </div>
-                  <DropdownMenuItem
-                    className="m-2 mt-0 flex cursor-pointer items-center justify-center border border-input bg-secondary px-4 py-2 text-sm font-medium data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<button className={iconBtn} aria-label="Account" />}>
+              {user?.image ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={user.image}
+                  alt=""
+                  className="size-7 rounded-full border border-border object-cover"
+                />
+              ) : user ? (
+                <span className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {getFirstName(user.name)[0].toUpperCase()}
+                </span>
               ) : (
-                <DropdownMenuContent align="end" className="w-64 p-0">
-                  <div className="px-4 pt-3.5 pb-3">
-                    <p className="text-sm font-semibold">Sign in</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Save progress across devices and appear on the leaderboard.
-                    </p>
-                  </div>
-                  <DropdownMenuItem
-                    className="m-2 mt-0 flex cursor-pointer items-center justify-center gap-2.5 border border-input bg-secondary px-4 py-2 text-sm font-medium data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                    onClick={handleGoogleSignIn}
-                  >
-                    <GoogleIcon />
-                    Sign in with Google
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                <User className="size-5" strokeWidth={2} />
               )}
-            </DropdownMenu>
-          </div>
+            </DropdownMenuTrigger>
+            {user ? (
+              <DropdownMenuContent align="end" className="w-64 p-0">
+                <div className="px-4 pt-3.5 pb-3">
+                  <p className="truncate text-sm font-semibold">
+                    {getFirstName(user.name)}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {user.email}
+                  </p>
+                </div>
+                <DropdownMenuItem
+                  className="m-2 mt-0 flex cursor-pointer items-center justify-center border border-input bg-secondary px-4 py-2 text-sm font-medium data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                  onClick={handleSignOut}
+                >
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            ) : (
+              <DropdownMenuContent align="end" className="w-64 p-0">
+                <div className="px-4 pt-3.5 pb-3">
+                  <p className="text-sm font-semibold">Sign in</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Save your progress and resume each set on any device.
+                  </p>
+                </div>
+                <DropdownMenuItem
+                  className="m-2 mt-0 flex cursor-pointer items-center justify-center gap-2.5 border border-input bg-secondary px-4 py-2 text-sm font-medium data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                  onClick={handleGoogleSignIn}
+                >
+                  <GoogleIcon />
+                  Sign in with Google
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            )}
+          </DropdownMenu>
         </div>
-      </nav>
-
-      <LeaderboardModal open={lbOpen} onOpenChange={setLbOpen} />
-    </>
+      </div>
+    </nav>
   );
 }

@@ -256,7 +256,7 @@ export default function QuizEngine({
       }
     }
     if (!signedIn) {
-      toast('Sign in to save your progress and appear on the leaderboard.', {
+      toast('Sign in to save your progress across devices.', {
         position:
           window.innerWidth >= 640 ? 'bottom-right' : 'bottom-center',
         action: {
@@ -380,19 +380,8 @@ export default function QuizEngine({
     }
   }
 
-  function recordAnswer() {
-    if (!session?.user) return;
-    fetch('/api/progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answered: 1 }),
-      keepalive: true,
-    }).catch(() => {});
-  }
-
   function handleChoiceClick(choice: string) {
     if (answered) return;
-    recordAnswer();
     setAnsweredAt(idx);
     const isCorrect = normalize(choice) === normalize(q.answer);
 
@@ -421,7 +410,6 @@ export default function QuizEngine({
   function checkAnswer() {
     if (answered) { nextQuestion(); return; }
     if (isChoice) return;
-    recordAnswer();
     setAnsweredAt(idx);
 
     const userVals = answers.map((_, i) => inputValues[i] ?? '');
