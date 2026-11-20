@@ -86,7 +86,7 @@ The engine shuffles `choices` on every render. `answer` must exactly match one o
 ## Grading logic (`lib/quiz.ts`)
 
 - **Exact match** — normalized (lowercase, stripped punctuation)
-- **Fuzzy match** — Levenshtein distance ≤ 1 (≤6 chars), ≤ 2 (≤10 chars), ≤ 3 (longer) — marked correct with a "close enough" toast
+- **Fuzzy match** — only forgives a misspelling, marked correct with a "close enough" toast. The answer must start with the same letter; answers of 4 characters or fewer must be exact; 5–10 characters forgive one added, dropped or transposed letter (not a changed letter, since that turns a term into another: abduction/adduction); longer answers forgive up to two edits
 - **Swap detection** — if a multi-blank answer has the right words in the wrong order, the engine catches it and tells the student
 
 ## Hydration gotcha

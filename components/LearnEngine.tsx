@@ -66,6 +66,19 @@ export default function LearnEngine({ questions, slug }: Props) {
     [questions, selectedCats]
   );
 
+  // Every answer this set teaches, normalized — lets grading tell a misspelling
+  // apart from a term the student mixed up
+  const knownTerms = useMemo(() => {
+    const terms = new Set<string>();
+    questions.forEach((item) => {
+      item.answer.split(',').forEach((blank) =>
+        blank.split('/').forEach((opt) => terms.add(normalize(opt)))
+      );
+      item.choices?.forEach((choice) => terms.add(normalize(choice)));
+    });
+    return terms;
+  }, [questions]);
+
   // True on the first selectedCats effect run so we can restore saved progress
   const isInitialMount = useRef(true);
 
@@ -305,7 +318,7 @@ export default function LearnEngine({ questions, slug }: Props) {
             const opts = answers[i].split('/');
             return (
               opts.map((o) => normalize(o)).includes(normalize(val)) ||
-              isFuzzyMatch(val, opts)
+              isFuzzyMatch(val, opts, knownTerms)
             );
           })
       );
@@ -318,7 +331,7 @@ export default function LearnEngine({ questions, slug }: Props) {
     answers.forEach((ans, i) => {
       const opts = ans.split('/');
       const exact = opts.map((o) => normalize(o)).includes(normalize(userVals[i]));
-      const fuzzy = !exact && isFuzzyMatch(userVals[i], opts);
+      const fuzzy = !exact && isFuzzyMatch(userVals[i], opts, knownTerms);
       const right = exact || fuzzy || swapped;
       if (fuzzy && !swapped) {
         fuzzyParts.push({ wrote: userVals[i], correct: opts[0] });

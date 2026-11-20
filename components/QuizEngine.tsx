@@ -118,6 +118,19 @@ export default function QuizEngine({
     return m;
   }, [questions]);
 
+  // Every answer this set teaches, normalized — lets grading tell a misspelling
+  // apart from a term the student mixed up
+  const knownTerms = useMemo(() => {
+    const terms = new Set<string>();
+    questions.forEach((item) => {
+      item.answer.split(',').forEach((blank) =>
+        blank.split('/').forEach((opt) => terms.add(normalize(opt)))
+      );
+      item.choices?.forEach((choice) => terms.add(normalize(choice)));
+    });
+    return terms;
+  }, [questions]);
+
   /** Saved category names that still exist, or every category. */
   function sessionCats(saved: QuizSession | null): Set<string> {
     const names = saved?.cats?.filter((c) => allCats.includes(c)) ?? [];
@@ -415,7 +428,7 @@ export default function QuizEngine({
         if (
           perm.every((val, i) => {
             const opts = answers[i].split('/');
-            return opts.map((o) => normalize(o)).includes(normalize(val)) || isFuzzyMatch(val, opts);
+            return opts.map((o) => normalize(o)).includes(normalize(val)) || isFuzzyMatch(val, opts, knownTerms);
           })
         ) {
           swapped = true;
@@ -430,7 +443,7 @@ export default function QuizEngine({
     answers.forEach((ans, i) => {
       const opts = ans.split('/');
       const exact = opts.map((o) => normalize(o)).includes(normalize(userVals[i]));
-      const fuzzy = !exact && isFuzzyMatch(userVals[i], opts);
+      const fuzzy = !exact && isFuzzyMatch(userVals[i], opts, knownTerms);
       const right = exact || fuzzy || swapped;
 
       if (fuzzy && !swapped) {
